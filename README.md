@@ -24,6 +24,208 @@ However, for a robust, scalable system, a few improvisations can elevate the pro
 
 ## 2. Step-by-Step Implementation Guide
 
+### Current implementation: Layers 1, 2, and 3
+
+The first implementation slice is available as the FastAPI backend service under
+[`backend`](backend):
+
+Run it with:
+
+```text
+cd C:\Users\Aditya\Desktop\NIDS
+python -m pip install -e ".[api,dev]"
+python -m uvicorn backend.main:app --reload
+```
+
+Open `http://127.0.0.1:8000/docs` for the interactive API.
+
+Run that command from the repository root (`C:\Users\Aditya\Desktop\NIDS`).
+Do not use `uvicorn main:app` from inside the `backend` directory; that loads
+the module without its `backend` package context and causes an attempted
+relative import error.
+
+If your terminal is already inside `backend`, use:
+
+```text
+python -m uvicorn backend.main:app --app-dir .. --reload
+```
+
+The service exposes `/health`, `/capture/status`, `/capture/interfaces`,
+`/capture/events`, `/capture/start`, `/capture/switch`, and `/capture/stop`.
+The pipeline runs automatically in a background worker after `/capture/start`
+or on application startup when `NIDS_AUTO_START=true`.
+
+Live capture is continuous: it keeps reading packets until you call
+`POST /capture/stop`, switch to another source, or shut down FastAPI. Captured
+events are appended to `data/normalized/events.jsonl` and can be viewed through
+`GET /capture/events?offset=0&limit=100`. The endpoint returns `total`, so
+larger histories can be browsed page by page without loading everything into
+memory.
+
+You can switch between PCAP and Suricata directly from the Swagger UI by
+opening `http://127.0.0.1:8000/docs` and calling `POST /capture/switch`.
+The endpoint stops the current source before starting the selected one:
+
+```json
+{
+  "mode": "suricata",
+  "path": "data/suricata/eve.json"
+}
+```
+
+To switch back to PCAP:
+
+```json
+{
+  "mode": "pcap",
+  "path": "data/pcaps/sample.pcap"
+}
+```
+
+The repository's `backend/.env` is loaded automatically when the API starts.
+The default `.env` is safe for development (`NIDS_AUTO_START=false`), so a
+missing Suricata file or Redis server cannot prevent FastAPI from starting.
+
+Configure automatic startup using environment variables:
+
+```text
+$env:NIDS_AUTO_START="true"
+$env:NIDS_SOURCE_MODE="suricata"
+$env:NIDS_SOURCE_PATH="data\suricata\eve.json"
+$env:NIDS_HISTORY_PATH="data\normalized\events.jsonl"
+$env:REDIS_URL="redis://localhost:6379/0"
+python -m uvicorn backend.main:app --reload
+```
+
+Supported source modes are `live`, `pcap`, `suricata`, and `jsonl`.
+
+#### Suricata and Zeek integration
+
+Suricata and Zeek are the production-oriented Layer 1 capture engines. They
+run beside this backend and write structured logs; the backend consumes those
+logs as Layer 2 input. Scapy remains useful for a lightweight Windows/Kali
+prototype and direct Wi-Fi demonstration.
+
+Suricata integration is currently available through `eve.json`:
+
+```json
+{
+  "mode": "suricata",
+  "path": "data/suricata/eve.json"
+}
+```
+
+Start Suricata on the monitored interface and configure EVE JSON output to
+`data/suricata/eve.json`. Then call `POST /capture/start` or
+`POST /capture/switch` from Swagger. The backend normalizes Suricata flow,
+alert, and packet records into the shared `PacketEvent` contract, persists
+them to JSONL, and publishes them to Redis.
+
+Zeek follows the same adapter boundary, but its TSV/JSON log adapter is not
+implemented yet. The planned flow is:
+
+```text
+Zeek conn.log / JSON logs
+    -> backend Zeek source adapter
+    -> PacketEvent normalization
+    -> data/normalized/events.jsonl
+    -> Redis Stream: nids:raw-events
+```
+
+This lets the capture engine be changed without changing the downstream ML
+consumer. The next Zeek implementation should map `id.orig_h`, `id.resp_h`,
+`id.orig_p`, `id.resp_p`, `proto`, `ts`, and `duration` into the common event
+model.
+
+For wireless live capture on Windows:
+
+1. Install **Npcap** with WinPcap compatibility mode.
+2. Install Scapy: `python -m pip install -e ".[api,dev,capture]"`
+3. Start FastAPI and call `GET /capture/interfaces` in Swagger.
+4. Select the Wi-Fi adapter shown there and call `POST /capture/start`:
+
+```json
+{
+  "mode": "live",
+  "interface": "YOUR-WIFI-INTERFACE"
+}
+```
+
+Use the interface name returned by the API, not necessarily `Wi-Fi`; Scapy
+often returns a long Npcap adapter name. Administrator privileges may be
+required. If Windows capture is unavailable, run the same backend on Kali
+Linux with the wireless interface (for example `wlan0`).
+
+The interface response includes both the adapter `name` and `description`, so
+you can identify the wireless adapter behind an Npcap GUID:
+
+```json
+{
+  "interfaces": [
+    {
+      "name": "\\Device\\NPF_{...}",
+      "description": "Wi-Fi"
+    }
+  ]
+}
+```
+
+Redis is an optional Layer 3 sink during local development. If Redis is down,
+Layer 1 and Layer 2 continue running and events are still written to the
+history file. The status reports `"broker": "unavailable"` with the
+connection error instead of stopping capture.
+
+When Redis is available, Layer 3 publishes every normalized event to:
+
+```text
+nids:raw-events
+```
+
+The next ML worker will consume this stream using a Redis consumer group.
+
+- `ScapyLiveSource` captures IPv4 packets from a live interface, including a Kali Linux interface.
+- `PcapReplaySource` replays a PCAP file when the optional Scapy dependency is installed.
+- `SuricataEveSource` normalizes Suricata EVE JSON records.
+- `JsonlEventStore` keeps an append-only historical event log for deterministic replay.
+- `RedisStreamSink` optionally publishes the same normalized event to `nids:raw-events`.
+- `PacketIngestor` fans each event out to all configured sinks.
+
+Install the development dependencies and run the tests with:
+
+```text
+pip install -e ".[dev]"
+pytest
+```
+
+For live capture or PCAP replay, install Scapy as well:
+
+```text
+pip install -e ".[capture]"
+```
+
+The normalized `PacketEvent` contract intentionally sits between capture and
+downstream ML processing. This keeps live capture, Suricata logs, Kali traffic,
+and historical replay interchangeable for later layers.
+
+#### Layer responsibilities
+
+```text
+Layer 1 - Network input
+    Scapy live Wi-Fi capture
+    Suricata EVE JSON
+    Zeek logs (planned adapter)
+    PCAP replay
+
+Layer 2 - Capture and ingestion
+    Normalize all inputs into PacketEvent
+    Persist every event to JSONL history
+    Expose paginated history through GET /capture/events
+
+Layer 3 - Message broker
+    Publish normalized events to Redis Stream nids:raw-events
+    Continue local capture if Redis is unavailable
+```
+
 To turn this vision into reality, the project should be broken down into incremental, manageable phases.
 
 ### Phase 1: Data Pipeline and Storage Foundation

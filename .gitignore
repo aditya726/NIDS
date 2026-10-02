@@ -1,0 +1,10 @@
+/.venv
+__pycache__
+.pytest_cache
+/node_modules
+ui/node_modules/
+ui/dist/
+data/suricata/*.json
+data/normalized/
+artifacts/
+.env
