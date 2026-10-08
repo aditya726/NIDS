@@ -24,6 +24,9 @@ def _path_value(value: str) -> Path:
 class Settings:
     source_mode: str = "none"
     source_path: Path | None = None
+    zeek_path: Path | None = None
+    suricata_live_path: Path = Path("data/suricata/eve.json")
+    zeek_live_path: Path = Path("data/zeek/conn.log")
     interface: str | None = None
     packet_filter: str | None = None
     history_path: Path = Path("data/normalized/events.jsonl")
@@ -37,6 +40,17 @@ class Settings:
         return cls(
             source_mode=os.getenv("NIDS_SOURCE_MODE", "none").lower(),
             source_path=_path_value(source_path) if source_path else None,
+            zeek_path=(
+                _path_value(os.getenv("NIDS_ZEEK_PATH"))
+                if os.getenv("NIDS_ZEEK_PATH")
+                else None
+            ),
+            suricata_live_path=_path_value(
+                os.getenv("NIDS_SURICATA_EVE_PATH", "data/suricata/eve.json")
+            ),
+            zeek_live_path=_path_value(
+                os.getenv("NIDS_ZEEK_CONN_PATH", "data/zeek/conn.log")
+            ),
             interface=os.getenv("NIDS_INTERFACE"),
             packet_filter=os.getenv("NIDS_PACKET_FILTER"),
             history_path=_path_value(

@@ -2,6 +2,7 @@
 
 from .models import PacketEvent
 from .ingest import PacketIngestor
+from .sources import DualSensorLiveSource, SuricataLiveSource, ZeekLiveSource
 from .sources import JsonlReplaySource, PcapReplaySource, ScapyLiveSource, SuricataEveSource
 
 __all__ = [
@@ -11,4 +12,7 @@ __all__ = [
     "PcapReplaySource",
     "ScapyLiveSource",
     "SuricataEveSource",
+    "SuricataLiveSource",
+    "ZeekLiveSource",
+    "DualSensorLiveSource",
 ]

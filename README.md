@@ -29,6 +29,55 @@ However, for a robust, scalable system, a few improvisations can elevate the pro
 The first implementation slice is available as the FastAPI backend service under
 [`backend`](backend):
 
+#### Progress through 2026-10-06
+
+The prototype currently has a working Layer 1-3 path:
+
+```text
+Scapy / PCAP / Suricata EVE / Zeek JSON
+                 |
+                 v
+          PacketEvent contract
+                 |
+       +---------+---------+
+       |                   |
+   JSONL history      Redis Stream
+                       nids:raw-events
+                             |
+                    Redis consumer group
+                       nids-workers
+```
+
+Implemented:
+
+- Windows live capture through Scapy/Npcap.
+- PCAP replay through Scapy.
+- Suricata EVE JSON file replay and live tailing.
+- Zeek JSON `conn.log` live tailing.
+- Concurrent Suricata + Zeek ingestion with `mode: "sensors"`.
+- Shared `PacketEvent` normalization for all input types.
+- Schema version, stable observation `event_id`, `event_source`, and a
+  bidirectional-flow `correlation_key`.
+- Append-only local history at `data/normalized/events.jsonl`.
+- Optional Redis Stream publishing to `nids:raw-events`.
+- Redis consumer-group boundary with acknowledgement only after successful
+  processing.
+- FastAPI control/status/events endpoints and the initial React dashboard.
+- Suricata `stats` records are accepted; `flow.age` is used as duration and
+  timestamp-like `flow.end` is not parsed as a number.
+
+Not implemented yet:
+
+- ML inference and a `SecurityAlert` output contract.
+- Alert correlation into incidents.
+- PostgreSQL incident persistence.
+- LLM/agentic analysis, WebSockets, and PDF reporting.
+- Automatic reclaiming of abandoned Redis pending messages and a dead-letter
+  stream.
+
+This means Layers 1-3 are ready for a controlled prototype demonstration, not
+yet for a production NIDS deployment.
+
 Run it with:
 
 ```text
@@ -50,8 +99,9 @@ If your terminal is already inside `backend`, use:
 python -m uvicorn backend.main:app --app-dir .. --reload
 ```
 
-The service exposes `/health`, `/capture/status`, `/capture/interfaces`,
-`/capture/events`, `/capture/start`, `/capture/switch`, and `/capture/stop`.
+The service exposes `/health`, `/capture/status`, `/sensors/status`,
+`/capture/interfaces`, `/capture/events`, `/capture/start`, `/capture/switch`,
+and `/capture/stop`.
 The pipeline runs automatically in a background worker after `/capture/start`
 or on application startup when `NIDS_AUTO_START=true`.
 
@@ -97,7 +147,24 @@ $env:REDIS_URL="redis://localhost:6379/0"
 python -m uvicorn backend.main:app --reload
 ```
 
-Supported source modes are `live`, `pcap`, `suricata`, and `jsonl`.
+Supported source modes are `live`, `pcap`, `suricata`, `suricata_live`,
+`zeek_live`, `sensors`, `suricata_zeek`, `jsonl`, and `replay`.
+
+#### Capture mode reference
+
+| Mode | Input | Use it for |
+| --- | --- | --- |
+| `live` | Scapy + Windows/Npcap or Linux interface | Direct prototype capture from a selected adapter, such as a Windows Wi-Fi adapter. |
+| `pcap` | PCAP file through Scapy | Deterministic replay of recorded traffic. |
+| `suricata` / `eve` | Existing Suricata `eve.json` from the beginning | One-time import or replay of an existing EVE file. |
+| `suricata_live` | Suricata `eve.json` from its current end | Follow new Suricata records as they are written. Use this for a Suricata-only live demo. |
+| `zeek_live` | Zeek JSON `conn.log` from its current end | Follow new Zeek connection records as they are written. |
+| `sensors` / `suricata_zeek` | Suricata EVE and Zeek JSON concurrently | Run both sensor tailers together and publish both event types through the same pipeline. |
+| `jsonl` / `replay` | Normalized `events.jsonl` | Replay backend history without requiring a sensor. |
+
+`suricata_live`, `zeek_live`, and `sensors` intentionally start at the
+current end of their files, so old records are not replayed. Start the API
+source first, then generate traffic or append new sensor records.
 
 #### Suricata and Zeek integration
 
@@ -106,36 +173,237 @@ run beside this backend and write structured logs; the backend consumes those
 logs as Layer 2 input. Scapy remains useful for a lightweight Windows/Kali
 prototype and direct Wi-Fi demonstration.
 
-Suricata integration is currently available through `eve.json`:
+Suricata live integration is available through `suricata_live`. It tails EVE
+JSON from the current end of the file, so old records are not replayed:
 
 ```json
 {
-  "mode": "suricata",
+  "mode": "suricata_live",
   "path": "data/suricata/eve.json"
 }
 ```
 
-Start Suricata on the monitored interface and configure EVE JSON output to
-`data/suricata/eve.json`. Then call `POST /capture/start` or
-`POST /capture/switch` from Swagger. The backend normalizes Suricata flow,
-alert, and packet records into the shared `PacketEvent` contract, persists
-them to JSONL, and publishes them to Redis.
+Start Suricata on the monitored Linux sensor interface and configure EVE JSON
+output to `data/suricata/eve.json`. Then call `POST /capture/start` or
+`POST /capture/switch` from Swagger. The backend continuously normalizes new
+Suricata flow and alert records into the shared `PacketEvent` contract,
+persists them to JSONL, and publishes them to Redis. The live tailer handles
+missing files and inode changes caused by log rotation.
 
-Zeek follows the same adapter boundary, but its TSV/JSON log adapter is not
-implemented yet. The planned flow is:
+Zeek live JSON ingestion is available through `zeek_live`:
 
-```text
-Zeek conn.log / JSON logs
-    -> backend Zeek source adapter
-    -> PacketEvent normalization
-    -> data/normalized/events.jsonl
-    -> Redis Stream: nids:raw-events
+```json
+{
+  "mode": "zeek_live",
+  "path": "data/zeek/conn.log"
+}
 ```
 
-This lets the capture engine be changed without changing the downstream ML
-consumer. The next Zeek implementation should map `id.orig_h`, `id.resp_h`,
-`id.orig_p`, `id.resp_p`, `proto`, `ts`, and `duration` into the common event
-model.
+Run Zeek with JSON logs enabled. The adapter maps connection metadata such as
+`id.orig_h`, `id.resp_h`, ports, `proto`, `ts`, duration, bytes, and packet
+counts into the common event model.
+
+Option C runs both sensors concurrently:
+
+```text
+Suricata eve.json ─┐
+                   ├─> dual sensor source -> PacketEvent -> Redis
+Zeek conn.log   ───┘
+```
+
+Configure the sensor output locations once in `backend/.env` (or deployment
+environment variables):
+
+```text
+NIDS_SURICATA_EVE_PATH=data/suricata/eve.json
+NIDS_ZEEK_CONN_PATH=data/zeek/conn.log
+```
+
+The production start request then only selects the sensor plane:
+
+```json
+{
+  "mode": "sensors"
+}
+```
+
+The two sensor tailers run in separate threads, stop together, and tolerate
+the log files not existing yet. Suricata and Zeek should run on a Linux
+sensor (Kali, Debian, or Ubuntu) with access to the monitored interface or a
+SPAN/TAP feed. The Windows Scapy source remains a development fallback only.
+Use `GET /sensors/status` to see whether both configured outputs are present,
+their paths, file sizes, and the active pipeline mode. Suricata and Zeek still
+need to be installed and attached to a real interface, SPAN port, or TAP by
+the sensor host; FastAPI does not replace those sensor processes.
+
+#### Suricata-only test from Windows + Ubuntu/WSL
+
+This is the recommended current Suricata demonstration. Suricata runs in
+Ubuntu/WSL and writes into the Windows repository; FastAPI runs on Windows and
+tails only the Suricata file.
+
+1. Start Redis if you want to demonstrate Layer 3:
+
+```powershell
+redis-cli ping
+```
+
+The expected response is `PONG`. Redis is optional for Layers 1-2.
+
+2. Start FastAPI on Windows:
+
+```powershell
+cd C:\Users\Aditya\Desktop\NIDS
+python -m uvicorn backend.main:app --reload
+```
+
+3. Open Ubuntu/WSL and install/check Suricata:
+
+```bash
+sudo apt update
+sudo apt install -y suricata
+suricata --build-info
+ip addr
+sudo suricata -T -c /etc/suricata/suricata.yaml
+```
+
+Use the monitored Ubuntu interface, commonly `eth0`, in the next command.
+WSL's `eth0` is a virtual interface; it may not see every packet on the
+physical Windows Wi-Fi adapter.
+
+4. Write EVE output into the repository:
+
+```bash
+mkdir -p /mnt/c/Users/Aditya/Desktop/NIDS/data/suricata
+sudo suricata \
+  -c /etc/suricata/suricata.yaml \
+  -i eth0 \
+  -l /mnt/c/Users/Aditya/Desktop/NIDS/data/suricata
+```
+
+In another Ubuntu terminal, verify that Suricata is producing JSON:
+
+```bash
+tail -f /mnt/c/Users/Aditya/Desktop/NIDS/data/suricata/eve.json
+```
+
+5. Start the Suricata-only source from PowerShell:
+
+```powershell
+$body = @{
+    mode = "suricata_live"
+    path = "data/suricata/eve.json"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/capture/start `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+6. Generate harmless traffic inside Ubuntu:
+
+```bash
+curl https://example.com
+nslookup example.com
+```
+
+7. Verify the normalized records from PowerShell:
+
+```powershell
+Invoke-RestMethod `
+  "http://127.0.0.1:8000/capture/status" |
+  ConvertTo-Json -Depth 10
+
+Invoke-RestMethod `
+  "http://127.0.0.1:8000/capture/events?latest=true&limit=10" |
+  ConvertTo-Json -Depth 10
+```
+
+Look for `capture_source` and `event_source` equal to `suricata`. A `stats`
+record proves that Suricata is running; `flow`, `dns`, `tls`, or `http` records
+prove that it is observing traffic.
+
+Stop the pipeline with:
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/capture/stop
+```
+
+#### Zeek-only test from Windows + Ubuntu/WSL
+
+Zeek follows the same pattern, but writes JSON `conn.log` instead of
+Suricata EVE JSON.
+
+1. Install/check Zeek in Ubuntu:
+
+```bash
+sudo apt update
+sudo apt install -y zeek
+zeek --version
+```
+
+If `zeek` is unavailable from the Ubuntu repository, install it using the
+official Zeek packages for the Ubuntu version in use.
+
+2. Start Zeek with JSON logs in the repository:
+
+```bash
+mkdir -p /mnt/c/Users/Aditya/Desktop/NIDS/data/zeek
+cd /mnt/c/Users/Aditya/Desktop/NIDS/data/zeek
+sudo zeek \
+  -i eth0 \
+  LogAscii::use_json=T \
+  Log::default_logdir=/mnt/c/Users/Aditya/Desktop/NIDS/data/zeek
+```
+
+Verify that the records are JSON objects rather than tab-separated text:
+
+```bash
+grep -v '^#' /mnt/c/Users/Aditya/Desktop/NIDS/data/zeek/conn.log | head
+```
+
+3. Start the Zeek-only source from Swagger or PowerShell:
+
+```powershell
+$body = @{
+    mode = "zeek_live"
+    path = "data/zeek/conn.log"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/capture/start `
+  -ContentType "application/json" `
+  -Body $body
+```
+
+4. Generate traffic in Ubuntu and inspect `/capture/events` as in the
+Suricata procedure. Zeek events should have `event_source: "zeek"` and
+`event_type: "connection"`.
+
+#### Both sensors together
+
+Configure the paths in `backend/.env`:
+
+```text
+NIDS_SURICATA_EVE_PATH=data/suricata/eve.json
+NIDS_ZEEK_CONN_PATH=data/zeek/conn.log
+```
+
+Start Suricata and Zeek first, then select:
+
+```json
+{
+  "mode": "sensors"
+}
+```
+
+The backend tails both files concurrently. Events from the two tools receive
+different `event_id` values, while compatible observations can share a
+`correlation_key`. The key is a grouping hint, not proof that two records are
+duplicates.
 
 For wireless live capture on Windows:
 
@@ -181,7 +449,69 @@ When Redis is available, Layer 3 publishes every normalized event to:
 nids:raw-events
 ```
 
-The next ML worker will consume this stream using a Redis consumer group.
+The next ML worker can consume this stream using the `nids-workers` Redis
+consumer group. Start the current worker boundary with:
+
+```text
+python -m backend.worker
+```
+
+The worker validates each `PacketEvent`, calls its processing handler, and only
+acknowledges the Redis message after that handler succeeds. A failed handler
+therefore leaves the message pending instead of silently losing it. Configure
+`NIDS_REDIS_GROUP` and `NIDS_REDIS_CONSUMER` when running multiple workers.
+
+Every normalized event includes:
+
+- `schema_version`: version of the event contract (currently `1`)
+- `event_id`: stable ID for the same sensor observation
+- `event_source`: `scapy`, `pcap`, `suricata`, `zeek`, or `test`
+- `correlation_key`: bidirectional protocol/endpoint key shared by matching
+  Suricata and Zeek observations
+
+The first sensor contract deliberately uses fields available from both tools:
+timestamp, source/destination IP and port, protocol, duration, bytes, packets,
+event type, and packet length. Suricata-only alert fields remain optional:
+signature, category, and severity. The correlation key is not an identity claim;
+it is a grouping hint for a future deduplication/correlation stage.
+
+### Frontend command center
+
+The first dashboard is available under [`frontend`](frontend). It is a
+React/TypeScript/Vite application styled with Tailwind and reusable
+shadcn-style panels, controls, status badges, and toast notifications.
+
+Start the backend first, then run:
+
+```powershell
+cd C:\Users\Aditya\Desktop\NIDS\frontend
+Copy-Item .env.example .env
+npm install
+npm run dev
+```
+
+Open the URL shown by Vite, normally `http://localhost:5173`.
+`VITE_API_URL` defaults to `http://127.0.0.1:8000`.
+
+FastAPI allows the local Vite origins by default. If the frontend is served
+from another origin, add it to `NIDS_CORS_ORIGINS` as a comma-separated list,
+then restart the backend:
+
+```text
+NIDS_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+The dashboard currently shows:
+
+- API and Redis connectivity
+- Capture pipeline status and processed-event count
+- Suricata + Zeek dual-sensor controls
+- Individual Suricata-live and Zeek-live controls
+- Windows/Kali live-interface selection
+- PCAP replay controls
+- Start, stop, and source-switch actions
+- Paginated captured-event telemetry
+- Toast feedback for API failures and successful operations
 
 - `ScapyLiveSource` captures IPv4 packets from a live interface, including a Kali Linux interface.
 - `PcapReplaySource` replays a PCAP file when the optional Scapy dependency is installed.
@@ -213,7 +543,7 @@ and historical replay interchangeable for later layers.
 Layer 1 - Network input
     Scapy live Wi-Fi capture
     Suricata EVE JSON
-    Zeek logs (planned adapter)
+    Zeek JSON logs
     PCAP replay
 
 Layer 2 - Capture and ingestion

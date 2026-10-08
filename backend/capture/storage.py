@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Protocol
 import json
+from collections import deque
 
 from .models import PacketEvent
 
@@ -32,6 +33,7 @@ class JsonlEventStore:
         total = 0
         if not self.path.exists():
             return events, total
+
         with self.path.open("r", encoding="utf-8") as source:
             for line_number, line in enumerate(source, start=1):
                 if not line.strip():
@@ -45,6 +47,27 @@ class JsonlEventStore:
                             f"invalid historical event at {self.path}:{line_number}: {exc}"
                         ) from exc
         return events, total
+
+    def read_latest(self, limit: int = 100) -> tuple[list[PacketEvent], int]:
+        """Read the newest bounded page without loading the whole history."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        if not self.path.exists():
+            return [], 0
+        recent: deque[PacketEvent] = deque(maxlen=limit)
+        total = 0
+        with self.path.open("r", encoding="utf-8") as source:
+            for line_number, line in enumerate(source, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    recent.append(PacketEvent.from_mapping(json.loads(line)))
+                except (json.JSONDecodeError, ValueError) as exc:
+                    raise ValueError(
+                        f"invalid historical event at {self.path}:{line_number}: {exc}"
+                    ) from exc
+                total += 1
+        return list(reversed(recent)), total
 
 
 class RedisStreamSink:

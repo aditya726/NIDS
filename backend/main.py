@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+import os
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .capture.sources import ScapyLiveSource
@@ -17,6 +20,7 @@ class CaptureStartRequest(BaseModel):
     mode: str | None = None
     path: str | None = None
     interface: str | None = None
+    zeek_path: str | None = None
 
 
 class CaptureSwitchRequest(CaptureStartRequest):
@@ -43,6 +47,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv(
+        "NIDS_CORS_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173",
+    ).split(",")
+    if origin.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/health")
 async def health() -> dict[str, str]:
@@ -54,21 +74,51 @@ async def capture_status() -> dict[str, Any]:
     return pipeline.status.as_dict()
 
 
+@app.get("/sensors/status")
+async def sensor_status() -> dict[str, Any]:
+    """Report deployment-side Suricata/Zeek log readiness."""
+    settings = pipeline.settings
+
+    def describe(name: str, path: Path) -> dict[str, Any]:
+        exists = path.exists()
+        return {
+            "name": name,
+            "path": str(path),
+            "available": exists,
+            "size_bytes": path.stat().st_size if exists else 0,
+            "updated_at": path.stat().st_mtime if exists else None,
+        }
+
+    return {
+        "mode": pipeline.status.source_mode,
+        "suricata": describe("suricata", settings.suricata_live_path),
+        "zeek": describe("zeek", settings.zeek_live_path),
+        "interface": settings.interface,
+        "dual_sensor_ready": settings.suricata_live_path.exists()
+        and settings.zeek_live_path.exists(),
+    }
+
+
 @app.get("/capture/events")
-async def capture_events(offset: int = 0, limit: int = 100) -> dict[str, Any]:
+async def capture_events(
+    offset: int = 0, limit: int = 100, latest: bool = False
+) -> dict[str, Any]:
     """Return a page of all locally persisted captured events."""
     if limit > 1000:
         raise HTTPException(status_code=400, detail="limit cannot exceed 1000")
     try:
-        events, total = JsonlEventStore(pipeline.settings.history_path).read(
-            offset=offset,
-            limit=limit,
+        store = JsonlEventStore(pipeline.settings.history_path)
+        events, total = (
+            store.read_latest(limit=limit)
+            if latest
+            else store.read(offset=offset, limit=limit)
         )
     except ValueError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return {
         "offset": offset,
         "limit": limit,
+        "latest": latest,
         "total": total,
         "events": [event.to_dict() for event in events],
     }
@@ -89,6 +139,7 @@ async def start_capture(request: CaptureStartRequest) -> dict[str, Any]:
             mode=request.mode,
             path=request.path,
             interface=request.interface,
+            zeek_path=request.zeek_path,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -107,6 +158,7 @@ async def switch_capture(request: CaptureSwitchRequest) -> dict[str, Any]:
             mode=request.mode,
             path=request.path,
             interface=request.interface,
+            zeek_path=request.zeek_path,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
