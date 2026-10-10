@@ -1,4 +1,4 @@
-# ARGUS NIDS frontend
+# NIDS Network Defense Console
 
 React + TypeScript + Vite + Tailwind dashboard for the FastAPI capture service.
 
