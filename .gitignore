@@ -1,0 +1,15 @@
+/.venv
+__pycache__
+.pytest_cache
+/node_modules
+/frontend/node_modules/
+/frontend/dist/
+*.egg-info/
+ui/node_modules/
+ui/dist/
+data/suricata/*.json
+data/normalized/
+artifacts/
+.env
+data/suricata/
+data/zeek/
