@@ -10,19 +10,34 @@ import logging
 import os
 
 from .capture.models import PacketEvent
+from .config import Settings
+from .detection.engine import DetectionEngine
+from .detection.storage import AlertStore
 from .redis_consumer import RedisEventConsumer
 
 logging.basicConfig(level=os.getenv("NIDS_LOG_LEVEL", "INFO"))
 logger = logging.getLogger(__name__)
 
 
+settings = Settings.from_environment()
+detector = DetectionEngine(
+    settings.ml_artifact_dir,
+    sample_path=settings.ml_sample_path,
+    auto_train=settings.ml_auto_train,
+)
+alert_store = AlertStore(settings.alerts_path)
+
+
 def handle_event(event: PacketEvent) -> None:
-    """Temporary processing boundary for the future ML detection worker."""
+    """Score a Redis event and persist the resulting Layer 4 alert."""
+    alert = detector.score(event)
+    alert_store.write(alert)
     logger.info(
-        "received event_id=%s source=%s correlation_key=%s",
+        "scored event_id=%s source=%s severity=%s risk=%.3f",
         event.event_id,
         event.event_source,
-        event.correlation_key,
+        alert.severity,
+        alert.risk_score,
     )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import os
+import json
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from pydantic import BaseModel
 from .capture.sources import ScapyLiveSource
 from .capture.storage import JsonlEventStore
 from .service import CapturePipeline
+from .detection.storage import AlertStore
 
 
 class CaptureStartRequest(BaseModel):
@@ -122,6 +124,22 @@ async def capture_events(
         "total": total,
         "events": [event.to_dict() for event in events],
     }
+
+
+@app.get("/detection/status")
+async def detection_status() -> dict[str, Any]:
+    return pipeline.detector.status
+
+
+@app.get("/detection/alerts")
+async def detection_alerts(limit: int = 100) -> dict[str, Any]:
+    if limit > 1000:
+        raise HTTPException(status_code=400, detail="limit cannot exceed 1000")
+    try:
+        alerts, total = AlertStore(pipeline.settings.alerts_path).read_latest(limit)
+    except (ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"alerts": alerts, "total": total}
 
 
 @app.get("/capture/interfaces")

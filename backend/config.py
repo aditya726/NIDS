@@ -30,6 +30,10 @@ class Settings:
     interface: str | None = None
     packet_filter: str | None = None
     history_path: Path = Path("data/normalized/events.jsonl")
+    alerts_path: Path = Path("data/normalized/alerts.jsonl")
+    ml_artifact_dir: Path = Path("data/ml/artifacts")
+    ml_sample_path: Path = Path("data/ml/sample_nids.csv")
+    ml_auto_train: bool = True
     redis_url: str | None = None
     redis_stream: str = "nids:raw-events"
     auto_start: bool = False
@@ -56,6 +60,20 @@ class Settings:
             history_path=_path_value(
                 os.getenv("NIDS_HISTORY_PATH", "data/normalized/events.jsonl")
             ),
+            alerts_path=_path_value(
+                os.getenv("NIDS_ALERTS_PATH", "data/normalized/alerts.jsonl")
+            ),
+            ml_artifact_dir=_path_value(
+                os.getenv("NIDS_ML_ARTIFACT_DIR", "data/ml/artifacts")
+            ),
+            ml_sample_path=_path_value(
+                os.getenv(
+                    "NIDS_ML_SAMPLE_PATH",
+                    "data/ml/sample_nids.csv",
+                )
+            ),
+            ml_auto_train=os.getenv("NIDS_ML_AUTO_TRAIN", "true").lower()
+            in {"1", "true", "yes"},
             redis_url=os.getenv("REDIS_URL"),
             redis_stream=os.getenv("NIDS_REDIS_STREAM", "nids:raw-events"),
             auto_start=os.getenv("NIDS_AUTO_START", "false").lower()

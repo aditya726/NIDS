@@ -21,6 +21,8 @@ from .capture.sources import (
 )
 from .capture.storage import EventSink, JsonlEventStore, RedisStreamSink
 from .config import Settings
+from .detection.engine import DetectionEngine
+from .detection.storage import AlertStore
 
 
 @dataclass
@@ -31,6 +33,8 @@ class PipelineStatus:
     last_event: PacketEvent | None = None
     error: str | None = None
     broker: str = "not-configured"
+    detected_alerts: int = 0
+    ml: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -40,6 +44,8 @@ class PipelineStatus:
             "last_event": self.last_event.to_dict() if self.last_event else None,
             "error": self.error,
             "broker": self.broker,
+            "detected_alerts": self.detected_alerts,
+            "ml": self.ml,
         }
 
 
@@ -51,6 +57,12 @@ class CapturePipeline:
         self.status = PipelineStatus()
         self._task: asyncio.Task[None] | None = None
         self._stop_event = threading.Event()
+        self.detector = DetectionEngine(
+            self.settings.ml_artifact_dir,
+            sample_path=self.settings.ml_sample_path,
+            auto_train=self.settings.ml_auto_train,
+        )
+        self.alerts = AlertStore(self.settings.alerts_path)
 
     async def start(
         self,
@@ -79,6 +91,7 @@ class CapturePipeline:
             running=True,
             source_mode=selected_mode,
             broker="redis" if self.settings.redis_url else "local-only",
+            ml=self.detector.status,
         )
         self._task = asyncio.create_task(self._run(source))
         return self.status.as_dict()
@@ -196,3 +209,11 @@ class CapturePipeline:
             ingestor.ingest([event])
             self.status.processed_events += 1
             self.status.last_event = event
+            try:
+                alert = self.detector.score(event)
+                self.alerts.write(alert)
+                self.status.detected_alerts += int(alert.severity != "LOW")
+            except RuntimeError as exc:
+                self.status.ml = self.detector.status
+                self.status.error = str(exc)
+            self.status.ml = self.detector.status
