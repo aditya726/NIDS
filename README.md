@@ -64,9 +64,14 @@ Implemented:
   processing.
 - FastAPI control/status/events endpoints and the initial React dashboard.
 - Layer 4 Random Forest + Isolation Forest inference through the shared
-  `backend.detection` package. Normalized events are converted to the ML
-  feature contract, scored once, and written to
+  `backend.detection` package. Normalized events are enriched with bounded
+  bidirectional flow features, scored in memory, and written to
   `data/normalized/alerts.jsonl`.
+- Scapy normalization now preserves IPv4/IPv6, transport protocol, TCP flags,
+  TTL/hop limit, payload size, interface, and packet timestamps. Suricata
+  flow/alert/application-protocol metadata is retained in the same contract.
+- Suricata `stats` events update capture state but are excluded from packet/flow
+  ML scoring.
 - Every alert stores the linked `event_id`, packet/flow context, original
   sensor payload, derived ML features, model scores, and explanation. Raw
   normalized events remain in `data/normalized/events.jsonl`; alerts are the
@@ -79,7 +84,7 @@ Implemented:
 - Suricata `stats` records are accepted; `flow.age` is used as duration and
   timestamp-like `flow.end` is not parsed as a number.
 
-Not implemented yet:
+Still planned:
 
 - Alert correlation into incidents.
 - PostgreSQL incident persistence.
@@ -87,8 +92,10 @@ Not implemented yet:
 - Automatic reclaiming of abandoned Redis pending messages and a dead-letter
   stream.
 
-This means Layers 1-4 are ready for a controlled prototype demonstration, not
-yet for a production NIDS deployment.
+Layers 1-4 now have flow-aware enrichment and a unified sensor contract, but
+the included bootstrap dataset is still intended for development and
+demonstration. Production deployment requires representative labeled traffic,
+threshold calibration, load testing, and operational hardening.
 
 Run it with:
 

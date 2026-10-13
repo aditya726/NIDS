@@ -22,6 +22,7 @@ from .capture.sources import (
 from .capture.storage import EventSink, JsonlEventStore, RedisStreamSink
 from .config import Settings
 from .detection.engine import DetectionEngine
+from .detection.flow import FlowAggregator
 from .detection.storage import AlertStore
 
 
@@ -63,6 +64,7 @@ class CapturePipeline:
             auto_train=self.settings.ml_auto_train,
         )
         self.alerts = AlertStore(self.settings.alerts_path)
+        self.flow_aggregator = FlowAggregator()
 
     async def start(
         self,
@@ -209,8 +211,12 @@ class CapturePipeline:
             ingestor.ingest([event])
             self.status.processed_events += 1
             self.status.last_event = event
+            if event.event_type == "stats":
+                self.status.ml = self.detector.status
+                continue
             try:
-                alert = self.detector.score(event)
+                flow_features = self.flow_aggregator.update(event)
+                alert = self.detector.score(event, flow_features)
                 self.alerts.write(alert)
                 self.status.detected_alerts += int(alert.severity != "LOW")
             except RuntimeError as exc:

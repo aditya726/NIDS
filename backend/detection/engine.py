@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from ..capture.models import PacketEvent
 from .ml_pipeline import (
@@ -110,24 +110,35 @@ class DetectionEngine:
         train_isolation_forest(x_train, y_train, self.artifact_dir)
 
     @staticmethod
-    def features_for(event: PacketEvent) -> dict[str, float]:
+    def features_for(
+        event: PacketEvent, flow_features: Mapping[str, float] | None = None
+    ) -> dict[str, float]:
         duration_ms = max((event.duration or 0.0) * 1000.0, 0.0)
         total_bytes = (event.source_bytes or 0) + (event.destination_bytes or 0)
         bytes_per_second = total_bytes / max(event.duration or 0.001, 0.001)
-        return {
+        features = {
             "Flow Duration": duration_ms,
             "Total Fwd Packets": float(event.source_packets or 1),
             "Total Backward Packets": float(event.destination_packets or 1),
             "Destination Port": float(event.destination_port or 0),
             "Flow Bytes/s": bytes_per_second,
             "Packet Length Mean": float(event.packet_length),
+            "Destination Port": float(event.destination_port or 0),
+            "IP Version": float(event.ip_version or 4),
+            "TTL": float(event.ttl or 0),
+            "Payload Size": float(event.payload_size or 0),
         }
+        if flow_features:
+            features.update(flow_features)
+        return features
 
-    def score(self, event: PacketEvent) -> SecurityAlert:
+    def score(
+        self, event: PacketEvent, flow_features: Mapping[str, float] | None = None
+    ) -> SecurityAlert:
         self._load()
-        features = self.features_for(event)
-        supervised_probability = predict_flow(features, self.artifact_dir)
-        anomaly = predict_anomaly(features, self.artifact_dir)
+        features = self.features_for(event, flow_features)
+        supervised_probability = predict_flow(features, self.artifact_dir, self._models)
+        anomaly = predict_anomaly(features, self.artifact_dir, self._models)
         risk = calculate_risk(
             supervised_probability, float(anomaly["anomaly_score"])
         )

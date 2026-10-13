@@ -110,11 +110,15 @@ def train_isolation_forest(
 
 
 def _prepared_row(
-    features_dict: dict[str, float], artifact_dir: str | Path
+    features_dict: dict[str, float],
+    artifact_dir: str | Path,
+    loaded: tuple[Any, Any] | None = None,
 ) -> tuple[pd.DataFrame, StandardScaler]:
     directory = Path(artifact_dir)
-    metadata = joblib.load(directory / "preprocessing.joblib")
-    scaler = joblib.load(directory / "scaler.joblib")
+    scaler, metadata = loaded if loaded else (
+        joblib.load(directory / "scaler.joblib"),
+        joblib.load(directory / "preprocessing.joblib"),
+    )
     row = pd.DataFrame(
         [{column: features_dict.get(column, np.nan) for column in metadata["feature_columns"]}]
     )
@@ -124,20 +128,26 @@ def _prepared_row(
     return row, scaler
 
 
-def predict_flow(features_dict: dict[str, float], artifact_dir: str | Path) -> float:
+def predict_flow(
+    features_dict: dict[str, float],
+    artifact_dir: str | Path,
+    loaded: tuple[Any, Any, Any, dict[str, Any]] | None = None,
+) -> float:
     directory = Path(artifact_dir)
-    model = joblib.load(directory / "random_forest.joblib")
-    row, scaler = _prepared_row(features_dict, directory)
+    model = loaded[0] if loaded else joblib.load(directory / "random_forest.joblib")
+    row, scaler = _prepared_row(features_dict, directory, loaded[2:] if loaded else None)
     scaled = pd.DataFrame(scaler.transform(row), columns=row.columns)
     return float(model.predict_proba(scaled)[:, 1][0])
 
 
 def predict_anomaly(
-    features_dict: dict[str, float], artifact_dir: str | Path
+    features_dict: dict[str, float],
+    artifact_dir: str | Path,
+    loaded: tuple[Any, Any, Any, dict[str, Any]] | None = None,
 ) -> dict[str, float | int]:
     directory = Path(artifact_dir)
-    model = joblib.load(directory / "isolation_forest.joblib")
-    row, scaler = _prepared_row(features_dict, directory)
+    model = loaded[1] if loaded else joblib.load(directory / "isolation_forest.joblib")
+    row, scaler = _prepared_row(features_dict, directory, loaded[2:] if loaded else None)
     scaled = pd.DataFrame(scaler.transform(row), columns=row.columns)
     raw_prediction = int(model.predict(scaled)[0])
     decision_score = float(model.decision_function(scaled)[0])
