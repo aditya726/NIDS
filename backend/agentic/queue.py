@@ -91,6 +91,19 @@ class AsyncAgentDispatcher:
             future.add_done_callback(self._finished)
             return True
 
+    def pause(self) -> None:
+        self.investigator.pause()
+        self.clear()
+
+    def resume(self) -> None:
+        self.investigator.resume()
+
+    def clear(self) -> None:
+        with self._lock:
+            for future in self._futures:
+                future.cancel()
+            self._futures.clear()
+
     def close(self) -> None:
         self._executor.shutdown(wait=False, cancel_futures=True)
 

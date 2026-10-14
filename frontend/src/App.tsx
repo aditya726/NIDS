@@ -190,6 +190,21 @@ function App() {
     }
   };
 
+  const toggleAgentSwarm = async () => {
+    try {
+      const res = await api.agentToggle();
+      setStatus((prev) => ({
+        ...prev,
+        agent: res.agent,
+      }));
+      const isPausedNow = res.agent.paused || res.agent.status === "paused" || !res.agent.enabled;
+      notify(isPausedNow ? "Agentic Swarm PAUSED (Capture remains active)" : "Agentic Swarm RESUMED");
+      await refresh();
+    } catch (err) {
+      notify(err instanceof Error ? err.message : "Failed to toggle agent", true);
+    }
+  };
+
   const selected = modes.find((item) => item.id === mode) ?? modes[0];
 
   return (
@@ -220,11 +235,19 @@ function App() {
         ))}
 
         <div className="rail-label lower">AI SWARM STATUS</div>
-        <div className="rail-system">
-          <span className={`signal ${status.agent?.available ? "on" : ""}`} />
+        <div
+          className="rail-system"
+          style={{ cursor: "pointer" }}
+          onClick={toggleAgentSwarm}
+          title={status.agent?.paused ? "Click to resume autonomous AI swarm" : "Click to pause autonomous AI swarm"}
+        >
+          <span
+            className={`signal ${status.agent?.available && !status.agent?.paused ? "on" : ""}`}
+            style={{ background: status.agent?.paused ? "#f59e0b" : undefined }}
+          />
           <div>
-            <small>AGENTIC BRAIN</small>
-            <b>{status.agent?.available ? status.agent.model : "Mistral 7B Staged"}</b>
+            <small>{status.agent?.paused ? "SWARM ON HOLD" : "AGENTIC BRAIN"}</small>
+            <b>{status.agent?.paused ? "Paused (Click to Start)" : status.agent?.available ? status.agent.model : "Mistral 7B Staged"}</b>
           </div>
         </div>
         <div className="rail-system">
@@ -252,6 +275,27 @@ function App() {
             <h1>{view === "overview" ? "Command Center" : nav.find((item) => item.id === view)?.label}</h1>
           </div>
           <div className="header-actions">
+            {/* Manual Stop / Resume Agentic Swarm Button */}
+            <button
+              className={`btn-swarm-toggle ${status.agent?.paused || status.agent?.status === "paused" || !status.agent?.enabled ? "paused" : "running"}`}
+              onClick={toggleAgentSwarm}
+              title={
+                status.agent?.paused || status.agent?.status === "paused" || !status.agent?.enabled
+                  ? "Resume autonomous multi-layer agent investigations"
+                  : "Manually stop/pause autonomous multi-layer agent investigations"
+              }
+            >
+              {status.agent?.paused || status.agent?.status === "paused" || !status.agent?.enabled ? (
+                <>
+                  <Play size={13} /> Resume Swarm
+                </>
+              ) : (
+                <>
+                  <CircleStop size={13} /> Stop Swarm
+                </>
+              )}
+            </button>
+
             <button
               className="btn-mitigate"
               style={{ background: "#0284c7", color: "#fff", padding: "6px 12px" }}
@@ -313,6 +357,7 @@ function App() {
               setCopilotIncident(inc);
               setCopilotOpen(true);
             }}
+            onToggleAgent={toggleAgentSwarm}
           />
         )}
 
@@ -353,17 +398,6 @@ function App() {
             </button>
           </div>
         )}
-
-        {/* Global Floating Copilot Trigger */}
-        <button
-          className="copilot-floating-btn"
-          onClick={() => {
-            setCopilotIncident(incidents[0] || null);
-            setCopilotOpen(true);
-          }}
-        >
-          <BrainCircuit size={16} /> AI SOC Copilot
-        </button>
 
         {/* Copilot Chat Drawer */}
         <CopilotDrawer

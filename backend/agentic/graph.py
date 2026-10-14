@@ -55,12 +55,24 @@ class AgenticInvestigator:
         return {
             "enabled": self.enabled,
             "status": self._status,
-            "available": self.enabled and self._status != "disabled",
+            "available": self.enabled and self._status not in ("disabled", "paused"),
+            "paused": self._status == "paused",
             "model": self.model,
             "ollama_url": self.ollama_url,
             "error": self._error,
-            "multi_layer_active": True,
+            "multi_layer_active": self.enabled and self._status != "paused",
         }
+
+    def pause(self) -> None:
+        """Manually halt autonomous agent investigations."""
+        self.enabled = False
+        self._status = "paused"
+
+    def resume(self) -> None:
+        """Manually resume autonomous agent investigations."""
+        self.enabled = True
+        self._status = "ready"
+
 
     def investigate(
         self,

@@ -29,7 +29,7 @@ export function CopilotDrawer({
   >([
     {
       role: "agent",
-      text: "👋 Greetings Analyst. I am the Antigravity Agentic Copilot. I have loaded context for the active network telemetry and ML detection models. Ask me about threat mechanics, blast radius, firewall rules, or packet forensics.",
+      text: "👋 Greetings Analyst. I am the Agentic Copilot. I have loaded context for the active network telemetry and ML detection models. Ask me about threat mechanics, blast radius, firewall rules, or packet forensics.",
       time: new Date().toLocaleTimeString(),
     },
   ]);
@@ -51,21 +51,21 @@ export function CopilotDrawer({
     try {
       const contextPayload: Record<string, unknown> = activeIncident
         ? {
-            incident_id: activeIncident.incident_id,
-            source_ip: activeIncident.source_ip,
-            destination_ip: activeIncident.destination_ip,
-            severity: activeIncident.severity,
-            attack_phase: activeIncident.attack_phase,
-            techniques: activeIncident.techniques,
-            risk_score: activeIncident.metrics?.risk_score,
-            confidence: activeIncident.confidence,
-            summary: activeIncident.summary,
-            adversary: activeIncident.adversary_profile,
-          }
+          incident_id: activeIncident.incident_id,
+          source_ip: activeIncident.source_ip,
+          destination_ip: activeIncident.destination_ip,
+          severity: activeIncident.severity,
+          attack_phase: activeIncident.attack_phase,
+          techniques: activeIncident.techniques,
+          risk_score: activeIncident.metrics?.risk_score,
+          confidence: activeIncident.confidence,
+          summary: activeIncident.summary,
+          adversary: activeIncident.adversary_profile,
+        }
         : {
-            mode: "general_telemetry",
-            note: "Operating on active pipeline telemetry.",
-          };
+          mode: "general_telemetry",
+          note: "Operating on active pipeline telemetry.",
+        };
 
       const res = await api.copilotChat({ question: q, context: contextPayload });
       setMessages((prev) => [

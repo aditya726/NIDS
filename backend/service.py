@@ -141,6 +141,27 @@ class CapturePipeline:
             zeek_path=zeek_path,
         )
 
+    def pause_agent(self) -> dict[str, Any]:
+        """Manually halt autonomous agent deep reasoning while keeping capture/ML active."""
+        self.investigator.pause()
+        self.agent_dispatcher.clear()
+        self.status.agent = self.investigator.status
+        self.status.agent_queue = self.agent_dispatcher.status
+        return self.status.as_dict()
+
+    def resume_agent(self) -> dict[str, Any]:
+        """Manually resume autonomous agent deep reasoning."""
+        self.investigator.resume()
+        self.status.agent = self.investigator.status
+        self.status.agent_queue = self.agent_dispatcher.status
+        return self.status.as_dict()
+
+    def toggle_agent(self) -> dict[str, Any]:
+        """Toggle autonomous agent investigations on/off."""
+        if self.investigator.enabled:
+            return self.pause_agent()
+        return self.resume_agent()
+
     async def wait(self) -> None:
         if self._task:
             await self._task
@@ -239,7 +260,7 @@ class CapturePipeline:
                 alert = self.detector.score(event, flow_features)
                 self.alerts.write(alert)
                 self.status.detected_alerts += int(alert.severity != "LOW")
-                if alert.severity != "LOW":
+                if alert.severity != "LOW" and self.investigator.enabled:
                     job = AgentJob(
                         event=event.to_dict(),
                         alert=alert.to_dict(),

@@ -4,6 +4,7 @@ export type AgentStatus = {
   enabled: boolean;
   status: string;
   available: boolean;
+  paused?: boolean;
   model: string;
   ollama_url: string;
   error: string | null;
@@ -228,5 +229,8 @@ export const api = {
     request<{ status: string; action: string; message: string; executed_at: string }>("/agent/mitigate", { method: "POST", body: JSON.stringify(payload) }),
   deepInvestigate: (payload: { alert_id?: string; event_id?: string }) =>
     request<Incident>("/agent/deep-investigate", { method: "POST", body: JSON.stringify(payload) }),
+  agentPause: () => request<{ status: string; agent: AgentStatus; pipeline: Status }>("/agent/pause", { method: "POST", body: "{}" }),
+  agentResume: () => request<{ status: string; agent: AgentStatus; pipeline: Status }>("/agent/resume", { method: "POST", body: "{}" }),
+  agentToggle: () => request<{ status: string; agent: AgentStatus; pipeline: Status }>("/agent/toggle", { method: "POST", body: "{}" }),
   reportUrl: (incidentId: string) => `${base}/incidents/${incidentId}/report`,
 };

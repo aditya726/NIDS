@@ -178,6 +178,54 @@ async def agent_status() -> dict[str, Any]:
     }
 
 
+@app.post("/agent/pause")
+@app.post("/agent/stop")
+async def pause_agent() -> dict[str, Any]:
+    """Manually halt autonomous agent investigations while maintaining packet capture."""
+    pipeline.pause_agent()
+    return {
+        "status": "paused",
+        "agent": {
+            **pipeline.investigator.status,
+            "mode": pipeline.settings.agent_mode,
+            "queue": pipeline.agent_dispatcher.status,
+        },
+        "pipeline": pipeline.status.as_dict(),
+    }
+
+
+@app.post("/agent/resume")
+@app.post("/agent/start")
+async def resume_agent() -> dict[str, Any]:
+    """Manually resume autonomous agent investigations."""
+    pipeline.resume_agent()
+    return {
+        "status": "ready",
+        "agent": {
+            **pipeline.investigator.status,
+            "mode": pipeline.settings.agent_mode,
+            "queue": pipeline.agent_dispatcher.status,
+        },
+        "pipeline": pipeline.status.as_dict(),
+    }
+
+
+@app.post("/agent/toggle")
+async def toggle_agent() -> dict[str, Any]:
+    """Toggle autonomous agent investigations between running and paused."""
+    pipeline.toggle_agent()
+    return {
+        "status": pipeline.investigator.status["status"],
+        "agent": {
+            **pipeline.investigator.status,
+            "mode": pipeline.settings.agent_mode,
+            "queue": pipeline.agent_dispatcher.status,
+        },
+        "pipeline": pipeline.status.as_dict(),
+    }
+
+
+
 @app.get("/incidents")
 async def incidents(limit: int = 100) -> dict[str, Any]:
     if limit > 1000:
