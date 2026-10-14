@@ -178,6 +178,13 @@ export type TopologyNode = {
   type: "attacker" | "target" | "gateway";
   risk: number;
   connections: number;
+  geo?: {
+    latitude: number;
+    longitude: number;
+    city?: string | null;
+    country?: string | null;
+    country_code?: string | null;
+  } | null;
 };
 
 export type TopologyEdge = {
@@ -187,11 +194,32 @@ export type TopologyEdge = {
   risk: number;
   severity: string;
   port: number;
+  event_id?: string;
+  timestamp?: string;
 };
 
 export type AnalyticsTopology = {
   nodes: TopologyNode[];
   edges: TopologyEdge[];
+  generated_at?: string;
+  geoip_enabled?: boolean;
+  geoip_available?: boolean;
+  geoip_resolved_nodes?: number;
+  geoip_status?: "ready" | "database_not_configured" | "database_unavailable";
+};
+
+export type RuntimeTelemetry = {
+  source: string;
+  host: string;
+  platform: string;
+  connections: {
+    local: string;
+    remote: string;
+    status: string;
+    pid: number | null;
+  }[];
+  traceroute: { available: boolean; reason?: string };
+  generated_at: string;
 };
 
 const base = (import.meta.env.VITE_API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
@@ -223,6 +251,7 @@ export const api = {
   switch: (payload: Record<string, string>) => request<CaptureResponse>("/capture/switch", { method: "POST", body: JSON.stringify(payload) }),
   analyticsOverview: () => request<AnalyticsOverview>("/analytics/overview"),
   analyticsTopology: () => request<AnalyticsTopology>("/analytics/topology"),
+  analyticsRuntime: () => request<RuntimeTelemetry>("/analytics/runtime"),
   copilotChat: (payload: { question: string; context: Record<string, unknown> }) =>
     request<{ answer: string; mode: string; model: string }>("/agent/copilot/chat", { method: "POST", body: JSON.stringify(payload) }),
   mitigate: (payload: { incident_id: string; action: string; command: string; target_ip?: string }) =>

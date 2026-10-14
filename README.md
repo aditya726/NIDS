@@ -127,6 +127,22 @@ NIDS_AGENTIC_MODEL=mistral:7b
 OLLAMA_URL=http://localhost:11434
 ```
 
+Threat Analytics is local-first. The dashboard can replay stored alert
+telemetry, render an OpenStreetMap-backed geographic view, and report
+best-effort local socket telemetry. Install the optional analytics extras to
+enable GeoIP lookups and socket enumeration:
+
+```powershell
+python -m pip install -e ".[analytics]"
+```
+
+Set `NIDS_GEOIP_DB` to an operator-managed MaxMind GeoLite2 City `.mmdb` file
+to enrich public source addresses with country/city coordinates. Unresolved,
+private, and internal addresses are intentionally omitted from the geographic
+view. The topology graph remains alert-derived; it does not claim physical
+router hops. The runtime panel reports when socket or path telemetry is
+unavailable rather than fabricating it.
+
 If Ollama is unavailable, capture and Layer 4 detection continue operating;
 `/agent/status` reports the explicit unavailable error and no false incident
 is created.

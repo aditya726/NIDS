@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { CircleMarker, MapContainer, Polyline, Popup, TileLayer } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -29,7 +31,7 @@ import {
   Shield,
   Zap,
 } from "lucide-react";
-import { AnalyticsOverview, AnalyticsTopology } from "../api";
+import { AnalyticsOverview, AnalyticsTopology, RuntimeTelemetry } from "../api";
 
 const PIE_COLORS = ["#ef4444", "#f97316", "#eab308", "#06b6d4", "#10b981", "#8b5cf6"];
 
@@ -38,15 +40,26 @@ type SubTab = "charts" | "topology" | "mitre";
 export function ThreatAnalytics({
   overview,
   topology,
+  runtimeTelemetry,
   onInspectIp,
 }: {
   overview: AnalyticsOverview | null;
   topology: AnalyticsTopology | null;
+  runtimeTelemetry: RuntimeTelemetry | null;
   onInspectIp?: (ip: string) => void;
 }) {
   const [subTab, setSubTab] = useState<SubTab>("charts");
   const [selectedMitre, setSelectedMitre] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<any | null>(null);
+  const [mapMode, setMapMode] = useState<"geographic" | "graph">("geographic");
+
+  const geoNodes = useMemo(
+    () => topology?.nodes.filter((node) => node.geo?.latitude != null && node.geo.longitude != null) || [],
+    [topology]
+  );
+  const mapCenter: [number, number] = geoNodes.length
+    ? [geoNodes[0].geo!.latitude, geoNodes[0].geo!.longitude]
+    : [20, 0];
 
   if (!overview) {
     return (
@@ -326,7 +339,58 @@ export function ThreatAnalytics({
           </div>
 
           <div className="topology-box">
-            <svg className="topology-svg" viewBox="0 0 800 380">
+            <div className="topology-view-switch">
+              <button className={mapMode === "geographic" ? "active" : ""} onClick={() => setMapMode("geographic")}>
+                <Globe2 size={13} /> Geographic view
+              </button>
+              <button className={mapMode === "graph" ? "active" : ""} onClick={() => setMapMode("graph")}>
+                <Network size={13} /> Relationship graph
+              </button>
+            </div>
+            {mapMode === "geographic" ? (
+              <>
+                <MapContainer center={mapCenter} zoom={geoNodes.length ? 3 : 2} scrollWheelZoom className="analytics-map">
+                  <TileLayer
+                    attribution='&copy; OpenStreetMap contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  {geoNodes.map((node) => (
+                    <CircleMarker
+                      key={node.id}
+                      center={[node.geo!.latitude, node.geo!.longitude]}
+                      radius={Math.max(6, Math.min(16, 5 + node.connections))}
+                      pathOptions={{ color: node.type === "attacker" ? "#ef4444" : "#06b6d4", fillOpacity: 0.75 }}
+                      eventHandlers={{ click: () => setSelectedNode(node) }}
+                    >
+                      <Popup>
+                        <strong>{node.label}</strong><br />
+                        {node.geo?.city || "Unknown city"}, {node.geo?.country || "Unknown country"}<br />
+                        Risk: {(node.risk * 100).toFixed(0)}%
+                      </Popup>
+                    </CircleMarker>
+                  ))}
+                  {topology?.edges.map((edge, index) => {
+                    const source = topology.nodes.find((node) => node.id === edge.source)?.geo;
+                    const target = topology.nodes.find((node) => node.id === edge.target)?.geo;
+                    return source && target ? (
+                      <Polyline
+                        key={`${edge.event_id || index}`}
+                        positions={[[source.latitude, source.longitude], [target.latitude, target.longitude]]}
+                        pathOptions={{ color: edge.severity === "HIGH" ? "#ef4444" : "#eab308", opacity: 0.45 }}
+                      />
+                    ) : null;
+                  })}
+                </MapContainer>
+                <small className="topology-disclaimer">
+                  {topology?.geoip_status === "ready"
+                    ? `${topology.geoip_resolved_nodes || 0} public address(es) resolved. Private/internal addresses remain omitted; this is not proof of physical routing.`
+                    : topology?.geoip_status === "database_unavailable"
+                    ? "GeoIP database could not be opened. Check NIDS_GEOIP_DB and install the analytics extras."
+                    : "GeoIP database is not configured. Set NIDS_GEOIP_DB to a local MaxMind GeoLite2-City.mmdb file to show public locations."}
+                </small>
+              </>
+            ) : null}
+            {mapMode === "graph" && <svg className="topology-svg" viewBox="0 0 800 380">
               {/* Central Gateway */}
               <circle cx="400" cy="190" r="32" fill="#1e1b4b" stroke="#8b5cf6" strokeWidth="2.5" />
               <text x="400" y="194" fill="#c084fc" fontSize="10" fontWeight="bold" textAnchor="middle">
@@ -394,8 +458,23 @@ export function ThreatAnalytics({
                   </g>
                 );
               })}
-            </svg>
+            </svg>}
           </div>
+
+          {runtimeTelemetry && (
+            <div className="runtime-telemetry">
+              <div>
+                <span>LOCAL SOCKET TELEMETRY</span>
+                <b>{runtimeTelemetry.source === "unavailable" ? "Unavailable" : `${runtimeTelemetry.connections.length} connections`}</b>
+                <small>{runtimeTelemetry.host} · {runtimeTelemetry.platform}</small>
+              </div>
+              <div>
+                <span>PHYSICAL PATH</span>
+                <b>{runtimeTelemetry.traceroute.available ? "Available" : "Not collected"}</b>
+                <small>{runtimeTelemetry.traceroute.reason || "Traceroute data is available."}</small>
+              </div>
+            </div>
+          )}
 
           {selectedNode && (
             <div className="adversary-card" style={{ marginTop: 14 }}>

@@ -14,3 +14,4 @@ data/ml/artifacts/
 .env
 data/suricata/
 data/zeek/
+data/geoip/

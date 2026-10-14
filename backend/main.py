@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 import json
 import os
+import ipaddress
+import platform
+import socket
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -410,11 +413,44 @@ async def analytics_overview() -> dict[str, Any]:
 
 @app.get("/analytics/topology")
 async def analytics_topology() -> dict[str, Any]:
-    """Return communication topology graph (nodes + directed threat edges)."""
+    """Return alert-derived topology with optional GeoIP enrichment."""
     try:
         alerts, _ = AlertStore(pipeline.settings.alerts_path).read_latest(150)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    geo_reader: Any | None = None
+    geoip_path = os.getenv("NIDS_GEOIP_DB")
+    if geoip_path:
+        try:
+            import geoip2.database
+
+            geo_reader = geoip2.database.Reader(geoip_path)
+        except (ImportError, OSError):
+            geo_reader = None
+
+    def geo_for(value: str) -> dict[str, Any] | None:
+        try:
+            address = ipaddress.ip_address(value)
+            if address.is_private or address.is_loopback or address.is_reserved:
+                return None
+        except ValueError:
+            return None
+        if geo_reader is None:
+            return None
+        try:
+            from geoip2.errors import AddressNotFoundError
+
+            city = geo_reader.city(value)
+            return {
+                "latitude": city.location.latitude,
+                "longitude": city.location.longitude,
+                "city": city.city.name,
+                "country": city.country.name,
+                "country_code": city.country.iso_code,
+            }
+        except (AddressNotFoundError, AttributeError, TypeError, ValueError):
+            return None
 
     nodes_dict: dict[str, dict[str, Any]] = {
         "sensor_gateway": {
@@ -423,6 +459,7 @@ async def analytics_topology() -> dict[str, Any]:
             "type": "gateway",
             "risk": 0.0,
             "connections": len(alerts),
+            "geo": None,
         }
     }
     edges = []
@@ -443,6 +480,7 @@ async def analytics_topology() -> dict[str, Any]:
                 "type": "attacker",
                 "risk": risk,
                 "connections": 1,
+                "geo": geo_for(src),
             }
         else:
             nodes_dict[src]["connections"] += 1
@@ -456,6 +494,7 @@ async def analytics_topology() -> dict[str, Any]:
                 "type": "target",
                 "risk": risk,
                 "connections": 1,
+                "geo": None,
             }
         else:
             nodes_dict[dst_id]["connections"] += 1
@@ -467,11 +506,67 @@ async def analytics_topology() -> dict[str, Any]:
             "risk": round(risk * 100, 1),
             "severity": sev,
             "port": port,
+            "event_id": alert.get("event_id"),
+            "timestamp": alert.get("timestamp"),
         })
 
+    if geo_reader is not None:
+        geo_reader.close()
+    resolved_nodes = sum(
+        1 for node in nodes_dict.values() if node.get("geo") is not None
+    )
     return {
         "nodes": list(nodes_dict.values())[:30],
         "edges": edges[:50],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "geoip_enabled": bool(geoip_path),
+        "geoip_available": geo_reader is not None,
+        "geoip_resolved_nodes": resolved_nodes,
+        "geoip_status": (
+            "ready"
+            if geo_reader is not None
+            else "database_not_configured"
+            if not geoip_path
+            else "database_unavailable"
+        ),
+    }
+
+
+@app.get("/analytics/runtime")
+async def analytics_runtime() -> dict[str, Any]:
+    """Return best-effort local socket telemetry without inventing unavailable data."""
+    connections: list[dict[str, Any]] = []
+    source = "unavailable"
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        try:
+            for connection in psutil.net_connections(kind="inet"):
+                if not connection.raddr:
+                    continue
+                connections.append({
+                    "local": f"{connection.laddr.ip}:{connection.laddr.port}",
+                    "remote": f"{connection.raddr.ip}:{connection.raddr.port}",
+                    "status": connection.status,
+                    "pid": connection.pid,
+                })
+            source = "psutil"
+        except psutil.Error:
+            connections = []
+            source = "unavailable"
+
+    return {
+        "source": source,
+        "host": socket.gethostname(),
+        "platform": platform.platform(),
+        "connections": connections[:200],
+        "traceroute": {
+            "available": False,
+            "reason": "Physical path collection is not enabled; alert telemetry does not prove router hops.",
+        },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
 

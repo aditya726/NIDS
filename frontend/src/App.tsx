@@ -35,6 +35,7 @@ import {
   Mode,
   SensorStatus,
   Status,
+  RuntimeTelemetry,
 } from "./api";
 import { ThreatAnalytics } from "./components/ThreatAnalytics";
 import { IncidentWorkbench } from "./components/IncidentWorkbench";
@@ -92,6 +93,7 @@ function App() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [topology, setTopology] = useState<AnalyticsTopology | null>(null);
+  const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetry | null>(null);
   const [mode, setMode] = useState<Mode>("sensors");
   const [iface, setIface] = useState("");
   const [busy, setBusy] = useState(false);
@@ -119,6 +121,7 @@ function App() {
           incidentHistory,
           analyticsData,
           topologyData,
+          runtimeData,
         ] = await Promise.all([
           api.health(),
           api.status(),
@@ -130,6 +133,7 @@ function App() {
           api.incidents(),
           api.analyticsOverview().catch(() => null),
           api.analyticsTopology().catch(() => null),
+          api.analyticsRuntime().catch(() => null),
         ]);
 
         setOnline(health.status === "ok");
@@ -141,6 +145,7 @@ function App() {
         setIncidents(incidentHistory.incidents);
         if (analyticsData) setOverview(analyticsData);
         if (topologyData) setTopology(topologyData);
+        if (runtimeData) setRuntimeTelemetry(runtimeData);
       } catch (error) {
         setOnline(false);
         if (!quiet) notify(error instanceof Error ? error.message : "Backend unavailable", true);
@@ -345,6 +350,7 @@ function App() {
           <ThreatAnalytics
             overview={overview}
             topology={topology}
+            runtimeTelemetry={runtimeTelemetry}
             onInspectIp={() => setView("detections")}
           />
         )}
