@@ -31,12 +31,18 @@ class Settings:
     packet_filter: str | None = None
     history_path: Path = Path("data/normalized/events.jsonl")
     alerts_path: Path = Path("data/normalized/alerts.jsonl")
+    incidents_path: Path = Path("data/normalized/incidents.jsonl")
     ml_artifact_dir: Path = Path("data/ml/artifacts")
     ml_sample_path: Path = Path("data/ml/sample_nids.csv")
     ml_auto_train: bool = True
     redis_url: str | None = None
     redis_stream: str = "nids:raw-events"
     auto_start: bool = False
+    agentic_enabled: bool = True
+    agentic_model: str = "mistral:7b"
+    ollama_url: str = "http://localhost:11434"
+    agent_mode: str = "local"
+    agent_stream: str = "nids:agent-jobs"
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -63,6 +69,9 @@ class Settings:
             alerts_path=_path_value(
                 os.getenv("NIDS_ALERTS_PATH", "data/normalized/alerts.jsonl")
             ),
+            incidents_path=_path_value(
+                os.getenv("NIDS_INCIDENTS_PATH", "data/normalized/incidents.jsonl")
+            ),
             ml_artifact_dir=_path_value(
                 os.getenv("NIDS_ML_ARTIFACT_DIR", "data/ml/artifacts")
             ),
@@ -78,4 +87,10 @@ class Settings:
             redis_stream=os.getenv("NIDS_REDIS_STREAM", "nids:raw-events"),
             auto_start=os.getenv("NIDS_AUTO_START", "false").lower()
             in {"1", "true", "yes"},
+            agentic_enabled=os.getenv("NIDS_AGENTIC_ENABLED", "true").lower()
+            in {"1", "true", "yes"},
+            agentic_model=os.getenv("NIDS_AGENTIC_MODEL", "mistral:7b"),
+            ollama_url=os.getenv("OLLAMA_URL", "http://localhost:11434"),
+            agent_mode=os.getenv("NIDS_AGENT_MODE", "local").lower(),
+            agent_stream=os.getenv("NIDS_AGENT_STREAM", "nids:agent-jobs"),
         )

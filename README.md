@@ -13,7 +13,7 @@ However, for a robust, scalable system, a few improvisations can elevate the pro
 | **Packet Capture & Core NIDS** | Scapy, PCAP / tcpreplay | **Suricata** or **Zeek**. *Reason:* Scapy is excellent for prototyping but struggles with high-throughput real-time traffic. Suricata and Zeek are industry standards that can parse 10Gbps+ traffic effortlessly and output structured JSON logs (e.g., EVE JSON) containing flow and protocol features directly into your ML pipeline. |
 | **Message Broker (New)** | *Not explicitly defined* | **Redis Streams**, **Apache Kafka**, or **RabbitMQ**. *Reason:* Network traffic generates massive amounts of events. Decoupling the packet capture from the ML engine and the Agentic layer using a message queue ensures the system doesn't drop packets during traffic spikes. |
 | **ML / DL Pipeline** | Python, Scikit-learn, TensorFlow | **PyTorch** + **XGBoost**. *Reason:* PyTorch is currently the preferred framework for modern deep learning (LSTMs/Autoencoders). XGBoost often outperforms Random Forest for tabular network flow data and is faster to infer. |
-| **Agentic AI** | LangGraph, Ollama, Gemma | **LangGraph or CrewAI** + **Llama 3 8B (via Ollama)**. *Reason:* Llama 3 currently offers exceptional reasoning capabilities for local, privacy-preserving deployments. CrewAI is a great alternative to LangGraph if you want to define distinct agent personas (e.g., a "Correlator Agent" and a "Reporting Agent"). |
+| **Agentic AI** | LangGraph, Ollama, Gemma | **LangGraph + Mistral 7B (via Ollama)**. *Reason:* Mistral 7B provides a practical local model for privacy-preserving incident correlation and explanation. |
 | **Backend & API** | FastAPI, WebSockets | **Keep.** FastAPI is the absolute best choice for async Python backends and WebSocket streaming. |
 | **Database & Memory** | PostgreSQL, Redis | **Keep.** PostgreSQL for long-term incident storage and Redis for short-term contextual memory (and message queuing). |
 | **Frontend** | React, Vite, Tailwind CSS | **Keep.** Add **Zustand** or **Redux Toolkit** for managing the complex state of real-time incoming alerts. Add **Recharts** or **Chart.js** for data visualization. |
@@ -81,6 +81,11 @@ Implemented:
   and are ignored by Git.
 - Detection APIs at `/detection/status` and `/detection/alerts`, plus a
   four-layer command-center view in the React dashboard.
+- Cross-layer LangGraph investigation workflow: packet context, flow features,
+  sensor evidence, ML scores, correlation, Mistral 7B analysis, incident
+  creation, and ticket-ready output. Incidents are persisted at
+  `data/normalized/incidents.jsonl` and exposed through `/agent/status` and
+  `/incidents`.
 - Suricata `stats` records are accepted; `flow.age` is used as duration and
   timestamp-like `flow.end` is not parsed as a number.
 
@@ -88,7 +93,7 @@ Still planned:
 
 - Alert correlation into incidents.
 - PostgreSQL incident persistence.
-- LLM/agentic analysis, WebSockets, and PDF reporting.
+- WebSockets and PDF reporting.
 - Automatic reclaiming of abandoned Redis pending messages and a dead-letter
   stream.
 
@@ -102,8 +107,48 @@ Run it with:
 ```text
 cd C:\Users\Aditya\Desktop\NIDS
 python -m pip install -e ".[api,capture,redis,ml,dev]"
+python -m pip install -e ".[agentic]"
 python -m uvicorn backend.main:app --reload
 ```
+
+The agentic workflow uses LangGraph and a local Ollama model. Install and
+start Ollama separately, then pull the configured model:
+
+```powershell
+ollama pull mistral:7b
+ollama serve
+```
+
+Configuration:
+
+```text
+NIDS_AGENTIC_ENABLED=true
+NIDS_AGENTIC_MODEL=mistral:7b
+OLLAMA_URL=http://localhost:11434
+```
+
+If Ollama is unavailable, capture and Layer 4 detection continue operating;
+`/agent/status` reports the explicit unavailable error and no false incident
+is created.
+
+The default `NIDS_AGENT_MODE=local` uses a bounded background dispatcher inside
+the API process, so capture does not wait for the local model. For an independent agent
+service, use Redis Streams:
+
+```text
+NIDS_AGENT_MODE=redis
+NIDS_AGENT_STREAM=nids:agent-jobs
+REDIS_URL=redis://localhost:6379/0
+```
+
+Start the separate worker in another terminal:
+
+```powershell
+python -m backend.agent_worker
+```
+
+In Redis mode, the capture/ML process only publishes agent jobs; the worker
+consumes, investigates, and persists incidents asynchronously.
 
 Open `http://127.0.0.1:8000/docs` for the interactive API.
 
@@ -609,7 +654,7 @@ To turn this vision into reality, the project should be broken down into increme
 ### Phase 3: Agentic AI Incident Layer (The "Brain")
 **Goal:** Correlate noisy alerts into cohesive incidents and generate human-readable explanations.
 1. **Alert Grouping (Heuristics):** Write a module to continuously group incoming alerts by Source IP, Destination IP, and Time Window (e.g., all alerts from IP X in the last 5 minutes).
-2. **Setup Local LLM:** Install Ollama and pull a capable model like `llama3`.
+2. **Setup Local LLM:** Install Ollama and pull the configured Mistral model with `ollama pull mistral:7b`.
 3. **Build the Agent Workflow (LangGraph/CrewAI):**
    - **Context Retrieval Tool:** Create a function the agent can call to query PostgreSQL for past incidents related to the current IPs involved in the alert group.
    - **Analysis Prompt:** Pass the grouped alerts and historical context to the LLM. Instruct it to determine if this represents a coordinated attack sequence and calculate a severity score based on predefined security policies.
@@ -641,4 +686,4 @@ To turn this vision into reality, the project should be broken down into increme
 ---
 
 ## Conclusion
-The proposed architecture is highly feasible and represents the cutting edge of modern Security Operations Center (SOC) automation. By implementing a message broker for scale, upgrading to industry-standard tools like Suricata/PyTorch, and leveraging a strong local model like Llama 3 for the agentic layer, you will have a robust, intelligent, and highly effective Network Intrusion Detection System.
+The proposed architecture is highly feasible and represents the cutting edge of modern Security Operations Center (SOC) automation. By implementing a message broker for scale, upgrading to industry-standard tools like Suricata/PyTorch, and leveraging a strong local model like Mistral 7B for the agentic layer, you will have a robust, intelligent, and highly effective Network Intrusion Detection System.

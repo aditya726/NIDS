@@ -24,6 +24,8 @@ from .config import Settings
 from .detection.engine import DetectionEngine
 from .detection.flow import FlowAggregator
 from .detection.storage import AlertStore
+from .agentic.graph import AgenticInvestigator
+from .agentic.queue import AgentJob, AsyncAgentDispatcher
 
 
 @dataclass
@@ -36,6 +38,8 @@ class PipelineStatus:
     broker: str = "not-configured"
     detected_alerts: int = 0
     ml: dict[str, Any] | None = None
+    agent: dict[str, Any] | None = None
+    agent_queue: dict[str, int] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -47,6 +51,8 @@ class PipelineStatus:
             "broker": self.broker,
             "detected_alerts": self.detected_alerts,
             "ml": self.ml,
+            "agent": self.agent,
+            "agent_queue": self.agent_queue,
         }
 
 
@@ -64,7 +70,16 @@ class CapturePipeline:
             auto_train=self.settings.ml_auto_train,
         )
         self.alerts = AlertStore(self.settings.alerts_path)
+        self.investigator = AgenticInvestigator(
+            self.settings.incidents_path,
+            enabled=self.settings.agentic_enabled,
+            model=self.settings.agentic_model,
+            ollama_url=self.settings.ollama_url,
+            alert_path=self.settings.alerts_path,
+        )
+        self.agent_dispatcher = AsyncAgentDispatcher(self.investigator)
         self.flow_aggregator = FlowAggregator()
+        self._agent_redis: Any | None = None
 
     async def start(
         self,
@@ -94,6 +109,8 @@ class CapturePipeline:
             source_mode=selected_mode,
             broker="redis" if self.settings.redis_url else "local-only",
             ml=self.detector.status,
+            agent=self.investigator.status,
+            agent_queue=self.agent_dispatcher.status,
         )
         self._task = asyncio.create_task(self._run(source))
         return self.status.as_dict()
@@ -104,6 +121,7 @@ class CapturePipeline:
             self._task.cancel()
             await asyncio.gather(self._task, return_exceptions=True)
         self.status.running = False
+        self.status.agent_queue = self.agent_dispatcher.status
         return self.status.as_dict()
 
     async def switch(
@@ -190,6 +208,8 @@ class CapturePipeline:
                     client = redis.Redis.from_url(self.settings.redis_url)
                     client.ping()
                     sinks.append(RedisStreamSink(client, self.settings.redis_stream))
+                    if self.settings.agent_mode == "redis":
+                        self._agent_redis = client
                 except Exception as exc:
                     self.status.broker = "unavailable"
                     self.status.error = (
@@ -219,6 +239,23 @@ class CapturePipeline:
                 alert = self.detector.score(event, flow_features)
                 self.alerts.write(alert)
                 self.status.detected_alerts += int(alert.severity != "LOW")
+                if alert.severity != "LOW":
+                    job = AgentJob(
+                        event=event.to_dict(),
+                        alert=alert.to_dict(),
+                        flow_features=flow_features,
+                    )
+                    if self._agent_redis is not None:
+                        self._agent_redis.xadd(
+                            self.settings.agent_stream, {"job": job.to_json()}
+                        )
+                        accepted = True
+                    else:
+                        accepted = self.agent_dispatcher.submit(job)
+                    self.status.agent = self.investigator.status
+                    self.status.agent_queue = self.agent_dispatcher.status
+                    if not accepted:
+                        self.status.error = "Agent investigation queue is full; alert remains available for replay."
             except RuntimeError as exc:
                 self.status.ml = self.detector.status
                 self.status.error = str(exc)

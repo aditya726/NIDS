@@ -28,7 +28,7 @@ How the two models work in parallel to catch both known and unknown threats. XGB
 
 ## 4. Agentic AI Workflow — The Brain
 
-The LangGraph/CrewAI agent workflow that transforms noisy ML alerts into actionable, explained incidents. Alerts are grouped by IP and time window, enriched with historical context from PostgreSQL, analyzed and explained by Llama 3 8B via Ollama.
+The LangGraph/CrewAI agent workflow that transforms noisy ML alerts into actionable, explained incidents. Alerts are grouped by IP and time window, enriched with historical context from PostgreSQL, analyzed and explained by Mistral 7B via Ollama.
 
 ![Agentic AI Workflow — The Brain](diagrams/04_agentic_ai_workflow.jpg)
 
@@ -52,7 +52,7 @@ How all 8 services are orchestrated as containers — from infrastructure (Postg
 | Unsupervised ML | **PyTorch Autoencoder / LSTM** | Detect zero-day anomalies via reconstruction error |
 | Alert Grouper | **Python (custom)** | Batch alerts by IP + time window before agent analysis |
 | Agent Orchestrator | **LangGraph** / CrewAI | Define multi-step agent workflow with tool use |
-| Local LLM | **Ollama + Llama 3 8B** | Reason, correlate, score severity, generate explanations |
+| Local LLM | **Ollama + Mistral 7B** | Reason, correlate, score severity, generate explanations |
 | Agent Memory | **Redis** | Store short-term context between agent invocations |
 | Persistent Storage | **PostgreSQL** | Store incidents, users, historical data |
 | Backend API | **FastAPI** | REST + WebSocket server |

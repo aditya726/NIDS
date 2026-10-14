@@ -1,4 +1,5 @@
 .layer-pipeline{margin:15px 0}
+.capture-status-strip{position:relative;display:flex;align-items:center;gap:10px;overflow:hidden;margin-bottom:16px;padding:10px 14px;border:1px solid #536b58;background:#18261f;color:#b7d6b7;font:10px "DM Mono";letter-spacing:.04em}.capture-status-strip strong{color:#d2e7c8}.capture-status-strip span:not(.capture-pulse){color:#94ad9a}.capture-pulse{display:grid;place-items:center;width:22px;height:22px;border:1px solid #9fc9af;border-radius:50%;color:#b7e0b1;animation:capture-pulse 1.8s ease-out infinite}.capture-scan{position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 0%,#b7e0b110 45%,#b7e0b140 50%,transparent 55%);transform:translateX(-100%);animation:capture-scan 3s linear infinite}@keyframes capture-pulse{0%,100%{box-shadow:0 0 0 0 #9fc9af00}45%{box-shadow:0 0 0 5px #9fc9af22}}@keyframes capture-scan{to{transform:translateX(100%)}}
 .layer-track{display:flex;align-items:center;margin:23px 0 13px}
 .layer-step{display:flex;align-items:center;gap:9px;min-width:21%;font:10px "DM Mono";color:#aebbb7}
 .layer-node{display:grid;place-items:center;width:30px;height:30px;border:1px solid #45534f;border-radius:50%;color:#778681}
@@ -35,4 +36,124 @@
 .detection-score span{font:9px "DM Mono";color:#718086}
 .detection-score b{font:17px "DM Mono";color:#d9e6df;margin-top:7px}
 .detection-explanation{border:1px solid #33443c;background:#17231f;color:#a9c8b2;padding:13px;font-size:11px;line-height:1.5;margin:14px 0}
+.agent-banner{display:flex;align-items:center;gap:12px;padding:14px 16px;margin-bottom:16px;border:1px solid #604334;background:#2a211d;color:#e2764a}.agent-banner div{display:flex;flex:1;flex-direction:column;gap:4px}.agent-banner b{font:12px "DM Mono";color:#f0c0aa}.agent-banner span{font:10px "DM Mono";color:#bba99e}.agent-banner small{display:block;color:#e2764a;font:10px/1.4 "DM Mono"}.agent-queue{color:#c0d56b!important;font:10px "DM Mono"}.incident-list{display:flex;flex-direction:column;gap:8px}.incident-card{display:flex;align-items:center;gap:12px;width:100%;padding:16px;text-align:left;border:1px solid #403a32;border-radius:3px;background:#211f1c;color:#eee8dc;cursor:pointer;transition:transform .18s ease,border-color .18s ease}.incident-card:hover{border-color:#e2764a;transform:translateX(3px)}.incident-card>div{flex:1}.incident-card b,.incident-card span{display:block}.incident-card b{font:12px "DM Mono";color:#eee8dc}.incident-card span{margin-top:5px;color:#a59d8f;font:10px "DM Mono"}.incident-card strong{color:#e2764a;font:10px "DM Mono"}.incident-section{margin:18px 0}.incident-section ul{margin:8px 0 0;padding-left:20px;color:#c8bbae;font:11px/1.65 "DM Mono"}.incident-section li{margin:5px 0}.incident-detail{max-width:620px}.incident-detail .raw-heading{display:flex;align-items:center;gap:7px}
+.agent-orchestration{margin-bottom:18px;padding:15px 16px;border:1px solid #3d3933;background:#1b1a18}.orchestration-heading{display:flex;justify-content:space-between;gap:12px;margin-bottom:16px;color:#c58e73;font:10px "DM Mono";letter-spacing:.08em}.orchestration-heading small{color:#8c8177;letter-spacing:0}.orchestration-track{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}.orchestration-stage{position:relative;min-width:0}.orchestration-node{position:relative;display:flex;align-items:center;height:25px;margin-bottom:8px}.orchestration-node span{z-index:1;display:grid;place-items:center;width:25px;height:25px;border:1px solid #4a4741;border-radius:50%;background:#24221f;color:#82786e;font:9px "DM Mono"}.orchestration-node.active span{border-color:#e2764a;background:#3b2821;color:#f0b39b;box-shadow:0 0 0 4px #e2764a12}.orchestration-node i{height:1px;flex:1;margin:0 4px;background:#484039}.orchestration-stage b,.orchestration-stage small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.orchestration-stage b{color:#ded0c0;font:9px "DM Mono"}.orchestration-stage small{margin-top:4px;color:#847a70;font:9px "DM Mono"}.orchestration-note{display:flex;align-items:center;gap:7px;margin-top:15px;color:#9f958b;font:10px "DM Mono"}.orchestration-pulse{width:7px;height:7px;border-radius:50%;background:#c0d56b;box-shadow:0 0 0 4px #c0d56b18;animation:capture-pulse 1.8s ease-out infinite}
+.case-analytics{display:grid;grid-template-columns:120px 160px 1fr;align-items:center;gap:18px;margin-bottom:18px;padding:16px;border:1px solid #3d3933;background:#1b1a18}.severity-donut{display:grid;place-items:center;width:88px;height:88px;border-radius:50%;color:#eee8dc;position:relative}.severity-donut:after{content:"";position:absolute;inset:12px;border-radius:50%;background:#1b1a18}.severity-donut b,.severity-donut small{z-index:1;position:relative;display:block;text-align:center}.severity-donut b{font:18px "DM Mono"}.severity-donut small{font:8px "DM Mono";color:#9b9086}.case-analytics-legend{display:grid;gap:8px;color:#a99d91;font:9px "DM Mono"}.case-analytics-legend>b{color:#c58e73;font-size:10px}.case-analytics-legend span{display:flex;align-items:center;gap:6px}.case-analytics-legend i{width:7px;height:7px;border-radius:50%}.case-analytics-legend i.high{background:#ed7c68}.case-analytics-legend i.medium{background:#e6b46b}.case-analytics-legend i.low{background:#91c9a9}.case-analytics-legend strong{margin-left:auto;color:#eee8dc}.case-analytics-note{display:grid;gap:7px;padding-left:18px;border-left:1px solid #3d3933;color:#9e9489;font:10px/1.5 "DM Mono"}.case-analytics-note b{color:#ded0c0;font-size:11px}.case-phase{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:8px 12px;align-items:center;margin:14px 0;padding:12px;border:1px solid #4b3b32;background:#241e1b;color:#a89588;font:9px "DM Mono"}.case-phase b{color:#e8c0a7;font-size:10px}.investigation-graph{margin:18px 0;padding:14px;border:1px solid #33443c;background:#15201c}.graph-track{display:flex;align-items:center;gap:5px;margin-top:15px}.graph-node{display:flex;align-items:center;flex:1;min-width:0}.graph-node>div{min-width:0;display:grid;gap:4px}.graph-node span{color:#c0d56b;font:9px "DM Mono"}.graph-node b,.graph-node small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.graph-node b{color:#d9e5dc;font:9px "DM Mono"}.graph-node small{color:#8da599;font:8px "DM Mono"}.graph-node i{height:1px;flex:1;margin:0 5px;background:#67836e}.case-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:14px 0;background:#35433e;border:1px solid #35433e}.case-metrics div{padding:10px;background:#111b18}.case-metrics span,.case-metrics b{display:block}.case-metrics span{color:#758b80;font:8px "DM Mono"}.case-metrics b{margin-top:5px;color:#dce8de;font:14px "DM Mono"}
+@media(max-width:900px){.orchestration-track{grid-template-columns:repeat(3,1fr);row-gap:14px}.orchestration-node i{display:none}}
+@media(max-width:700px){.case-analytics{grid-template-columns:1fr 1fr}.case-analytics-note{grid-column:1/-1;padding:12px 0 0;border-left:0;border-top:1px solid #3d3933}.case-phase{grid-template-columns:1fr 1fr}.graph-track{display:grid;grid-template-columns:1fr;gap:10px}.graph-node i{display:none}}
 @media(max-width:900px){.layer-track{gap:4px}.layer-step{min-width:0;flex:1}.layer-connector{margin:0 4px}}
+
+/* =========================================================================
+   Ultra-Modern SOC Threat Analytics & Visualizations
+   ========================================================================= */
+.analytics-page { display: flex; flex-direction: column; gap: 20px; }
+.analytics-hero { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; background: linear-gradient(135deg, #131a24 0%, #172230 100%); border: 1px solid #28374d; border-radius: 6px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+.analytics-hero h2 { font-size: 18px; margin: 4px 0 6px; color: #f1f5f9; font-weight: 700; letter-spacing: -0.01em; }
+.analytics-hero p { margin: 0; color: #94a3b8; font-size: 12px; font-family: "DM Mono", monospace; }
+.analytics-subnav { display: flex; gap: 8px; margin-top: 14px; }
+.analytics-subnav button { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid #2d3b4e; border-radius: 4px; background: #0f1622; color: #94a3b8; font: 11px/1 "DM Mono", monospace; cursor: pointer; transition: all 0.2s; }
+.analytics-subnav button:hover { border-color: #60a5fa; color: #f8fafc; }
+.analytics-subnav button.active { background: #1e293b; border-color: #38bdf8; color: #38bdf8; font-weight: 600; box-shadow: 0 0 12px #38bdf820; }
+
+.charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-top: 6px; }
+.charts-grid.single-col { grid-template-columns: 1fr; }
+.chart-card { background: #121824; border: 1px solid #233145; border-radius: 6px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); position: relative; overflow: hidden; }
+.chart-card:hover { border-color: #334762; }
+.chart-card-full { grid-column: 1 / -1; }
+.chart-header { display: flex; justify-content: space-between; align-items: flex-start; }
+.chart-header b { font-size: 13px; color: #f1f5f9; font-family: "DM Mono", monospace; letter-spacing: 0.02em; display: flex; align-items: center; gap: 8px; }
+.chart-header small { display: block; color: #64748b; font-size: 10px; font-family: "DM Mono", monospace; margin-top: 3px; }
+.chart-badge { font: 9px "DM Mono", monospace; padding: 3px 8px; border-radius: 3px; background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
+.chart-body { min-height: 240px; width: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
+
+/* Network Topology Map */
+.topology-box { height: 420px; width: 100%; background: radial-gradient(circle at center, #172233 0%, #0d121c 100%); border-radius: 4px; border: 1px solid #1e2b3c; position: relative; overflow: hidden; }
+.topology-svg { width: 100%; height: 100%; }
+.topology-legend { display: flex; gap: 16px; margin-top: 10px; font: 10px "DM Mono", monospace; color: #94a3b8; }
+.topology-legend span { display: flex; align-items: center; gap: 6px; }
+.topology-legend i { width: 8px; height: 8px; border-radius: 50%; }
+
+/* MITRE ATT&CK Matrix Explorer */
+.mitre-explorer { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 10px; }
+.mitre-col { background: #0e141f; border: 1px solid #1f2b3b; border-radius: 4px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.mitre-col-title { font: 10px "DM Mono", monospace; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #1e293b; padding-bottom: 6px; font-weight: 700; }
+.mitre-technique-card { background: #16202f; border: 1px solid #28374b; border-radius: 3px; padding: 10px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: all 0.2s; }
+.mitre-technique-card:hover { border-color: #f43f5e; transform: translateY(-2px); box-shadow: 0 4px 12px #f43f5e20; }
+.mitre-technique-card.selected { border-color: #38bdf8; background: #1a283c; }
+.mitre-technique-card b { font: 11px "DM Mono", monospace; color: #f1f5f9; }
+.mitre-technique-card span { font: 9px "DM Mono", monospace; color: #94a3b8; line-height: 1.3; }
+.mitre-hits-pill { margin-top: 4px; align-self: flex-start; font: 9px "DM Mono", monospace; padding: 2px 6px; border-radius: 10px; background: #3b1d28; color: #fb7185; border: 1px solid #e11d4840; }
+
+/* Interactive Remediation Playbook */
+.playbook-container { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+.playbook-card { background: #141b27; border: 1px solid #253347; border-radius: 5px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s; }
+.playbook-card:hover { border-color: #3a4e6b; }
+.playbook-header { display: flex; justify-content: space-between; align-items: center; }
+.playbook-step-title { display: flex; align-items: center; gap: 10px; font: 12px "DM Mono", monospace; color: #f8fafc; font-weight: 600; }
+.step-num { width: 22px; height: 22px; border-radius: 50%; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf860; display: grid; place-items: center; font-size: 10px; font-weight: 700; }
+.playbook-priority { font: 9px "DM Mono", monospace; padding: 2px 7px; border-radius: 3px; background: #2a1b24; color: #f43f5e; border: 1px solid #f43f5e40; font-weight: 600; }
+.playbook-desc { font: 11px/1.4 "DM Mono", monospace; color: #94a3b8; margin: 0; }
+.playbook-cmd-box { display: flex; align-items: center; justify-content: space-between; background: #0a0e16; border: 1px solid #1a2434; border-radius: 4px; padding: 8px 12px; gap: 10px; }
+.playbook-cmd-box code { font: 11px "DM Mono", monospace; color: #38bdf8; overflow-x: auto; white-space: nowrap; flex: 1; }
+.playbook-actions { display: flex; gap: 8px; margin-top: 4px; }
+.btn-mitigate { display: flex; align-items: center; gap: 6px; padding: 6px 14px; background: #0284c7; color: #fff; border: none; border-radius: 4px; font: 10px "DM Mono", monospace; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.btn-mitigate:hover { background: #0369a1; box-shadow: 0 0 10px #0284c750; }
+.btn-mitigate.executed { background: #15803d; color: #dcfce7; cursor: default; }
+
+/* IOC Cards */
+.iocs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin: 12px 0; }
+.ioc-card { background: #0f1622; border: 1px solid #1f2c3e; border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.ioc-card small { font: 9px "DM Mono", monospace; color: #64748b; text-transform: uppercase; }
+.ioc-card code { font: 11px "DM Mono", monospace; color: #f8fafc; word-break: break-all; }
+.ioc-card span { font: 9px "DM Mono", monospace; color: #38bdf8; align-self: flex-start; }
+
+/* Executive Dossier & Deep Narrative */
+.executive-dossier { background: linear-gradient(180deg, #182333 0%, #121926 100%); border: 1px solid #2d405b; border-radius: 6px; padding: 18px 20px; margin: 16px 0; line-height: 1.6; font-size: 12px; color: #cbd5e1; box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.dossier-tag { display: inline-flex; align-items: center; gap: 6px; font: 10px "DM Mono", monospace; color: #38bdf8; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+.adversary-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; background: #0f1520; border: 1px solid #1e2a3c; border-radius: 4px; padding: 12px; margin: 12px 0; }
+.adversary-card div { display: flex; flex-direction: column; gap: 3px; }
+.adversary-card span { font: 9px "DM Mono", monospace; color: #64748b; text-transform: uppercase; }
+.adversary-card b { font: 11px "DM Mono", monospace; color: #f8fafc; }
+
+/* Interactive SOC Copilot Drawer / Modal */
+.copilot-floating-btn { position: fixed; bottom: 24px; right: 28px; z-index: 100; display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 30px; background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); color: #fff; font: 12px/1 "DM Mono", monospace; font-weight: 700; border: 1px solid #38bdf8; box-shadow: 0 8px 24px rgba(2,132,199,0.4); cursor: pointer; transition: all 0.2s; }
+.copilot-floating-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(2,132,199,0.6); }
+
+.copilot-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 440px; max-width: 90vw; background: #0f1623; border-left: 1px solid #233246; z-index: 150; display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.6); animation: slideInRight 0.25s ease-out; }
+@keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
+.copilot-header { padding: 18px 20px; border-bottom: 1px solid #233246; display: flex; justify-content: space-between; align-items: center; background: #131c2c; }
+.copilot-header h4 { margin: 0; font: 13px "DM Mono", monospace; color: #f8fafc; display: flex; align-items: center; gap: 8px; }
+.copilot-header small { color: #38bdf8; font-size: 10px; font-family: "DM Mono", monospace; }
+.copilot-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.copilot-msg { display: flex; flex-direction: column; gap: 6px; max-width: 92%; }
+.copilot-msg.user { align-self: flex-end; }
+.copilot-msg.agent { align-self: flex-start; }
+.copilot-msg-bubble { padding: 12px 14px; border-radius: 8px; font: 11px/1.55 "DM Mono", monospace; }
+.copilot-msg.user .copilot-msg-bubble { background: #0284c7; color: #f8fafc; border-bottom-right-radius: 2px; }
+.copilot-msg.agent .copilot-msg-bubble { background: #182232; color: #cbd5e1; border: 1px solid #28374d; border-bottom-left-radius: 2px; }
+.copilot-msg.agent .copilot-msg-bubble pre { background: #0b0f17; padding: 8px 10px; border-radius: 4px; overflow-x: auto; margin: 8px 0; color: #38bdf8; font-size: 10px; }
+.copilot-prompts { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 20px 0; }
+.copilot-prompt-chip { padding: 5px 10px; border-radius: 12px; background: #162232; border: 1px solid #28394e; color: #94a3b8; font: 10px "DM Mono", monospace; cursor: pointer; transition: all 0.15s; }
+.copilot-prompt-chip:hover { border-color: #38bdf8; color: #f8fafc; background: #1d2b3f; }
+.copilot-footer { padding: 14px 20px; border-top: 1px solid #233246; background: #131c2c; }
+.copilot-input-form { display: flex; gap: 8px; }
+.copilot-input-form input { flex: 1; background: #0a0e16; border: 1px solid #28394e; border-radius: 4px; padding: 9px 12px; color: #f8fafc; font: 11px "DM Mono", monospace; outline: none; }
+.copilot-input-form input:focus { border-color: #38bdf8; }
+.copilot-input-form button { padding: 0 16px; background: #0284c7; border: none; border-radius: 4px; color: #fff; font: 11px "DM Mono", monospace; font-weight: 700; cursor: pointer; }
+
+/* End-to-End Multi-Layer Architecture Blueprint View */
+.arch-view-grid { display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 10px; }
+.arch-card { background: #121824; border: 1px solid #243347; border-radius: 6px; padding: 18px 20px; display: grid; grid-template-columns: 80px 220px 1fr 140px; align-items: center; gap: 16px; transition: all 0.2s; }
+.arch-card:hover { border-color: #38bdf8; transform: translateX(3px); background: #151d2c; }
+.arch-layer-id { width: 44px; height: 44px; border-radius: 50%; background: #1e293b; color: #38bdf8; border: 2px solid #38bdf860; display: grid; place-items: center; font: 14px "DM Mono", monospace; font-weight: 800; }
+.arch-layer-info b { font: 13px "DM Mono", monospace; color: #f8fafc; display: block; }
+.arch-layer-info span { font: 10px "DM Mono", monospace; color: #94a3b8; display: block; margin-top: 4px; }
+.arch-layer-desc { font: 11px/1.5 "DM Mono", monospace; color: #cbd5e1; }
+.arch-layer-status { font: 10px "DM Mono", monospace; padding: 4px 10px; border-radius: 3px; background: #142a20; color: #4ade80; border: 1px solid #22c55e40; text-align: center; font-weight: 700; }
+
+@media(max-width: 900px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .arch-card { grid-template-columns: 1fr; gap: 10px; }
+  .copilot-drawer { width: 100vw; }
+}
+

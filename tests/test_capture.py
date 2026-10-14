@@ -17,6 +17,7 @@ from backend.config import Settings
 from backend.redis_consumer import RedisEventConsumer
 from backend.service import CapturePipeline
 from backend.main import app, sensor_status
+from backend.agentic.graph import AgenticInvestigator
 
 
 def event(**overrides):
@@ -251,6 +252,18 @@ def test_api_exposes_capture_control_routes():
     assert "/capture/start" in routes
     assert "/capture/switch" in routes
     assert "/sensors/status" in routes
+    assert "/agent/status" in routes
+    assert "/incidents" in routes
+
+
+def test_agentic_workflow_can_be_disabled_without_side_effects(tmp_path: Path):
+    investigator = AgenticInvestigator(
+        tmp_path / "incidents.jsonl",
+        enabled=False,
+    )
+
+    assert investigator.investigate({}, {}, {}) is None
+    assert investigator.status["status"] == "disabled"
 
 
 def test_sensor_status_reports_configured_outputs(tmp_path: Path):
