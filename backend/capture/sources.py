@@ -127,6 +127,8 @@ class SuricataLiveSource:
             packet_length=int(length or 0),
             capture_source="suricata",
             packet_id=record.get("flow_id"),
+            sensor_event_id=str(record.get("event_id")) if record.get("event_id") else None,
+            flow_id=str(record.get("flow_id")) if record.get("flow_id") else None,
             raw=record,
             event_type=record.get("event_type"),
             # ``flow.end`` is an ISO timestamp, not a duration. Only ``age``
@@ -139,6 +141,7 @@ class SuricataLiveSource:
             alert_signature=(record.get("alert") or {}).get("signature"),
             alert_category=(record.get("alert") or {}).get("category"),
             alert_severity=_int_or_none((record.get("alert") or {}).get("severity")),
+            application_protocol=record.get("app_proto"),
         )
 
 
@@ -181,6 +184,7 @@ class ZeekLiveSource:
             + (_int_or_none(record.get("resp_bytes")) or 0),
             capture_source="zeek",
             packet_id=record.get("uid"),
+            flow_id=record.get("uid"),
             raw=record,
             event_type="connection",
             duration=_float_or_none(record.get("duration")),
@@ -188,6 +192,7 @@ class ZeekLiveSource:
             destination_bytes=_int_or_none(record.get("resp_bytes")),
             source_packets=_int_or_none(record.get("orig_pkts")),
             destination_packets=_int_or_none(record.get("resp_pkts")),
+            application_protocol=record.get("service"),
         )
 
 
@@ -295,7 +300,7 @@ def _tail_json_lines(
 
 
 def _int_or_none(value: Any) -> int | None:
-    return int(value) if value is not None and value != "-" else None
+    return int(value) if value is not None and value != "-" and value != "" else None
 
 
 def _float_or_none(value: Any) -> float | None:
@@ -346,7 +351,9 @@ class ScapyLiveSource:
             )
             if not packets:
                 continue
-            event = _packet_to_event(packets[0], f"scapy:{self.interface}")
+            event = _packet_to_event(
+                packets[0], f"scapy:{self.interface}", interface=self.interface
+            )
             if event is not None:
                 yield event
 
@@ -368,19 +375,52 @@ class ScapyLiveSource:
         ]
 
 
-def _packet_to_event(packet: Any, capture_source: str) -> PacketEvent | None:
-    from scapy.all import IP, TCP, UDP
+def _packet_to_event(
+    packet: Any, capture_source: str, interface: str | None = None
+) -> PacketEvent | None:
+    from scapy.all import ARP, ICMP, IPv6, IP, TCP, UDP
 
-    if not packet.haslayer(IP):
+    ip_layer = packet.getlayer(IP) or packet.getlayer(IPv6)
+    if ip_layer is None:
         return None
-    transport = packet.getlayer(TCP) or packet.getlayer(UDP)
-    return PacketEvent.now(
-        source_ip=packet[IP].src,
-        destination_ip=packet[IP].dst,
+    transport = packet.getlayer(TCP) or packet.getlayer(UDP) or packet.getlayer(ICMP)
+    protocol = (
+        "TCP"
+        if packet.haslayer(TCP)
+        else "UDP"
+        if packet.haslayer(UDP)
+        else "ICMP"
+        if packet.haslayer(ICMP)
+        else str(getattr(ip_layer, "nh", getattr(ip_layer, "proto", "UNKNOWN")))
+    )
+    payload_size = (
+        len(bytes(getattr(transport, "payload", b""))) if transport is not None else 0
+    )
+    flags = str(getattr(packet.getlayer(TCP), "flags", "")) or None
+    timestamp = getattr(packet, "time", None)
+    event_kwargs = dict(
+        source_ip=ip_layer.src,
+        destination_ip=ip_layer.dst,
         source_port=getattr(transport, "sport", None),
         destination_port=getattr(transport, "dport", None),
-        protocol=str(getattr(packet[IP], "proto", None)),
+        protocol=protocol,
         packet_length=len(packet),
         capture_source=capture_source,
-        raw={"summary": packet.summary()},
+        ip_version=6 if packet.haslayer(IPv6) else 4,
+        tcp_flags=flags,
+        ttl=getattr(ip_layer, "hlim", getattr(ip_layer, "ttl", None)),
+        payload_size=payload_size,
+        interface=interface,
+        raw={"summary": packet.summary(), "has_arp": packet.haslayer(ARP)},
     )
+    if hasattr(timestamp, "isoformat"):
+        event_kwargs["timestamp"] = timestamp.isoformat()
+        return PacketEvent(**event_kwargs)
+    if isinstance(timestamp, (int, float)):
+        from datetime import datetime, timezone
+
+        event_kwargs["timestamp"] = datetime.fromtimestamp(
+            timestamp, timezone.utc
+        ).isoformat()
+        return PacketEvent(**event_kwargs)
+    return PacketEvent.now(**event_kwargs)

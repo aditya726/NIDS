@@ -10,6 +10,7 @@ ui/dist/
 data/suricata/*.json
 data/normalized/
 artifacts/
+data/ml/artifacts/
 .env
 data/suricata/
 data/zeek/

@@ -36,6 +36,15 @@ class PacketEvent:
     event_id: str | None = None
     correlation_key: str | None = None
     event_source: str | None = None
+    sensor_event_id: str | None = None
+    flow_id: str | None = None
+    direction: str | None = None
+    ip_version: int | None = None
+    tcp_flags: str | None = None
+    ttl: int | None = None
+    payload_size: int | None = None
+    application_protocol: str | None = None
+    interface: str | None = None
 
     def __post_init__(self) -> None:
         if self.schema_version < 1:
@@ -131,4 +140,19 @@ class PacketEvent:
             event_id=value.get("event_id"),
             correlation_key=value.get("correlation_key"),
             event_source=value.get("event_source"),
+            sensor_event_id=value.get("sensor_event_id"),
+            flow_id=value.get("flow_id"),
+            direction=value.get("direction"),
+            ip_version=_int_or_none(value.get("ip_version")),
+            tcp_flags=value.get("tcp_flags"),
+            ttl=_int_or_none(value.get("ttl")),
+            payload_size=_int_or_none(value.get("payload_size")),
+            application_protocol=value.get("application_protocol"),
+            interface=value.get("interface"),
         )
+
+
+def _int_or_none(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)

@@ -63,30 +63,63 @@ Implemented:
 - Redis consumer-group boundary with acknowledgement only after successful
   processing.
 - FastAPI control/status/events endpoints and the initial React dashboard.
+- Layer 4 Random Forest + Isolation Forest inference through the shared
+  `backend.detection` package. Normalized events are enriched with bounded
+  bidirectional flow features, scored in memory, and written to
+  `data/normalized/alerts.jsonl`.
+- Scapy normalization now preserves IPv4/IPv6, transport protocol, TCP flags,
+  TTL/hop limit, payload size, interface, and packet timestamps. Suricata
+  flow/alert/application-protocol metadata is retained in the same contract.
+- Suricata `stats` events update capture state but are excluded from packet/flow
+  ML scoring.
+- Every alert stores the linked `event_id`, packet/flow context, original
+  sensor payload, derived ML features, model scores, and explanation. Raw
+  normalized events remain in `data/normalized/events.jsonl`; alerts are the
+  auditable detection projection of those events.
+- Automatic bootstrap training from the included prototype dataset when ML
+  artifacts are absent. Generated artifacts live under `data/ml/artifacts/`
+  and are ignored by Git.
+- Detection APIs at `/detection/status` and `/detection/alerts`, plus a
+  four-layer command-center view in the React dashboard.
 - Suricata `stats` records are accepted; `flow.age` is used as duration and
   timestamp-like `flow.end` is not parsed as a number.
 
-Not implemented yet:
+Still planned:
 
-- ML inference and a `SecurityAlert` output contract.
 - Alert correlation into incidents.
 - PostgreSQL incident persistence.
 - LLM/agentic analysis, WebSockets, and PDF reporting.
 - Automatic reclaiming of abandoned Redis pending messages and a dead-letter
   stream.
 
-This means Layers 1-3 are ready for a controlled prototype demonstration, not
-yet for a production NIDS deployment.
+Layers 1-4 now have flow-aware enrichment and a unified sensor contract, but
+the included bootstrap dataset is still intended for development and
+demonstration. Production deployment requires representative labeled traffic,
+threshold calibration, load testing, and operational hardening.
 
 Run it with:
 
 ```text
 cd C:\Users\Aditya\Desktop\NIDS
-python -m pip install -e ".[api,dev]"
+python -m pip install -e ".[api,capture,redis,ml,dev]"
 python -m uvicorn backend.main:app --reload
 ```
 
 Open `http://127.0.0.1:8000/docs` for the interactive API.
+
+The first scored event trains the prototype models from
+`data/ml/sample_nids.csv` if no artifacts exist. Set
+`NIDS_ML_AUTO_TRAIN=false` to require pre-built artifacts. The Redis worker
+uses the same detector and alert contract:
+
+```powershell
+python -m backend.worker
+```
+
+The dashboard polls capture, sensor, model, event, and alert endpoints and
+shows the state of Layers 1-4: capture, normalization, transport, and hybrid
+ML detection. LOW results remain in alert history for auditability; the
+command center highlights MEDIUM and HIGH signals.
 
 Run that command from the repository root (`C:\Users\Aditya\Desktop\NIDS`).
 Do not use `uvicorn main:app` from inside the `backend` directory; that loads

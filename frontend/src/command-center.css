@@ -1,0 +1,38 @@
+.layer-pipeline{margin:15px 0}
+.layer-track{display:flex;align-items:center;margin:23px 0 13px}
+.layer-step{display:flex;align-items:center;gap:9px;min-width:21%;font:10px "DM Mono";color:#aebbb7}
+.layer-node{display:grid;place-items:center;width:30px;height:30px;border:1px solid #45534f;border-radius:50%;color:#778681}
+.layer-node.ready{background:#9fc9af;color:#14201f;border-color:#9fc9af}
+.layer-connector{height:1px;flex:1;background:#34423f;margin:0 12px}
+.layer-pipeline>small{color:#71817d;font:10px "DM Mono"}
+.alert-list{display:flex;flex-direction:column}
+.alert-row{display:flex;align-items:center;gap:11px;border-top:1px solid #263138;padding:13px 0}
+.alert-row>div{flex:1}
+.alert-row b,.alert-row span{display:block}
+.alert-row b{font:11px "DM Mono";color:#d9e4e1}
+.alert-row b small{color:#77858a}
+.alert-row span{font:9px "DM Mono";color:#a7b4ae;margin-top:5px}
+.alert-row strong{font:9px "DM Mono";font-weight:400;color:#71807f}
+.severity-dot{width:8px;height:8px;border-radius:50%;background:#77847f;flex:none}
+.severity-dot.high{background:#ed7c68;box-shadow:0 0 0 3px #ed7c6825}
+.severity-dot.medium{background:#e6b46b;box-shadow:0 0 0 3px #e6b46b25}
+.severity-dot.low{background:#91c9a9}
+.detection-toolbar{align-items:center}
+.severity-filter{height:32px;background:#0e151c;border:1px solid #2c3940;border-radius:4px;color:#cbd7d3;padding:0 9px;font:10px "DM Mono"}
+.detection-table td{vertical-align:middle}
+.detection-table td b{font:10px "DM Mono";color:#d9e4e1}
+.detection-table td small{display:block;color:#718087;font:9px "DM Mono";margin-top:4px}
+.severity-badge,.model-tag,.baseline-tag{display:inline-block;border-radius:3px;padding:5px 7px;font:9px "DM Mono";letter-spacing:.04em}
+.severity-badge.high{background:#472725;color:#f29a88}
+.severity-badge.medium{background:#4a3923;color:#e9c27d}
+.severity-badge.low{background:#213a2c;color:#9fd2b0}
+.model-tag{margin:2px 3px 2px 0;background:#1b3028;color:#a8d1b6}
+.baseline-tag{background:#273137;color:#93a0a3}
+.detection-detail{max-width:760px}
+.detection-score{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#29363b;border:1px solid #29363b;margin:14px 0}
+.detection-score div{background:#111a20;padding:13px}
+.detection-score span,.detection-score b{display:block}
+.detection-score span{font:9px "DM Mono";color:#718086}
+.detection-score b{font:17px "DM Mono";color:#d9e6df;margin-top:7px}
+.detection-explanation{border:1px solid #33443c;background:#17231f;color:#a9c8b2;padding:13px;font-size:11px;line-height:1.5;margin:14px 0}
+@media(max-width:900px){.layer-track{gap:4px}.layer-step{min-width:0;flex:1}.layer-connector{margin:0 4px}}

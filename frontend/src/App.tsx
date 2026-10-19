@@ -4,13 +4,14 @@ import {
   Gauge, LayoutDashboard, Network, Play, Radio, RefreshCw, Search, Server,
   CheckCircle2, Shield, Wifi, X, LoaderCircle,
 } from "lucide-react";
-import { api, Event, Mode, SensorStatus, Status } from "./api";
+import { Alert, api, Event, Mode, SensorStatus, Status } from "./api";
 
-type View = "overview" | "sensors" | "events" | "infrastructure";
+type View = "overview" | "sensors" | "events" | "detections" | "infrastructure";
 const nav: { id: View; label: string; icon: typeof Radio }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "sensors", label: "Sensors", icon: Shield },
   { id: "events", label: "Event stream", icon: Activity },
+  { id: "detections", label: "Detection log", icon: AlertTriangle },
   { id: "infrastructure", label: "Infrastructure", icon: Server },
 ];
 const modes: { id: Mode; label: string; detail: string }[] = [
@@ -20,7 +21,7 @@ const modes: { id: Mode; label: string; detail: string }[] = [
   { id: "live", label: "Scapy fallback", detail: "Development capture" },
 ];
 
-const emptyStatus: Status = { running: false, source_mode: "none", processed_events: 0, last_event: null, error: null, broker: "unknown" };
+const emptyStatus: Status = { running: false, source_mode: "none", processed_events: 0, last_event: null, error: null, broker: "unknown", detected_alerts: 0, ml: null };
 
 function App() {
   const [view, setView] = useState<View>("overview");
@@ -29,6 +30,7 @@ function App() {
   const [events, setEvents] = useState<Event[]>([]);
   const [total, setTotal] = useState(0);
   const [interfaces, setInterfaces] = useState<{ name: string; description: string }[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [mode, setMode] = useState<Mode>("sensors");
   const [iface, setIface] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,8 +39,8 @@ function App() {
   const notify = (text: string, error = false) => { setToast({ text, error }); window.setTimeout(() => setToast(null), 3600); };
   const refresh = useCallback(async (quiet = true) => {
     try {
-      const [health, nextStatus, history, sensorStatus] = await Promise.all([api.health(), api.status(), api.events(), api.sensors()]);
-      setOnline(health.status === "ok"); setStatus(nextStatus); setEvents(history.events); setTotal(history.total); setSensors(sensorStatus);
+      const [health, nextStatus, history, sensorStatus, detection, alertHistory] = await Promise.all([api.health(), api.status(), api.events(), api.sensors(), api.detection(), api.alerts()]);
+      setOnline(health.status === "ok"); setStatus({ ...nextStatus, ml: detection }); setEvents(history.events); setTotal(history.total); setSensors(sensorStatus); setAlerts(alertHistory.alerts);
     } catch (error) { setOnline(false); if (!quiet) notify(error instanceof Error ? error.message : "Backend unavailable", true); }
   }, []);
   useEffect(() => { void refresh(false); const timer = window.setInterval(() => void refresh(), 3000); return () => window.clearInterval(timer); }, [refresh]);
@@ -62,19 +64,42 @@ function App() {
     </aside>
     <main className="workspace">
       <header className="header"><div><div className="crumb">OPERATIONS <ChevronRight size={12}/> {nav.find((item) => item.id === view)?.label.toUpperCase()}</div><h1>{view === "overview" ? "Command center" : nav.find((item) => item.id === view)?.label}</h1></div><div className="header-actions"><span className="clock"><span className={`signal ${online ? "on" : ""}`}/>{online ? "LIVE" : "OFFLINE"}</span><button className="icon-btn" onClick={() => void refresh(false)}><RefreshCw size={16}/></button></div></header>
-      {view === "overview" && <Overview status={status} events={events} total={total} sensors={sensors} onNavigate={setView}/>}
+      {view === "overview" && <Overview status={status} events={events} alerts={alerts} total={total} sensors={sensors} onNavigate={setView}/>}
       {view === "sensors" && <section className="page-grid"><SensorControl mode={mode} setMode={setMode} iface={iface} setIface={setIface} interfaces={interfaces} selected={selected} busy={busy} running={status.running} action={action}/><SensorPanel sensors={sensors}/></section>}
       {view === "events" && <Events events={events} total={total}/>}
+      {view === "detections" && <Detections alerts={alerts} total={alerts.length}/>}
       {view === "infrastructure" && <Infrastructure status={status} online={online} sensors={sensors}/>}
       {toast && <div className={`toast ${toast.error ? "danger" : "success"}`} role="status" aria-live="polite"><span className="toast-icon">{toast.error ? <AlertTriangle size={19}/> : <CheckCircle2 size={19}/>}</span><span className="toast-copy"><b>{toast.error ? "CAPTURE ERROR" : "CAPTURE UPDATE"}</b>{toast.text}</span><button aria-label="Dismiss notification" onClick={() => setToast(null)}><X size={15}/></button></div>}
     </main>
   </div>;
 }
 
-function Overview({ status, events, total, sensors, onNavigate }: { status: Status; events: Event[]; total: number; sensors: SensorStatus | null; onNavigate: (view: View) => void }) {
+function Overview({ status, events, alerts, total, sensors, onNavigate }: { status: Status; events: Event[]; alerts: Alert[]; total: number; sensors: SensorStatus | null; onNavigate: (view: View) => void }) {
   return <><section className="hero"><div><div className="overline">NETWORK DEFENSE / REAL-TIME</div><h2>See the signal before it becomes an incident.</h2><p>Unified telemetry from your Suricata and Zeek sensor plane.</p></div><div className={`hero-state ${status.running ? "active" : ""}`}><Radio size={20}/><div><small>PIPELINE</small><b>{status.running ? "CAPTURING" : "STANDBY"}</b><span>{status.source_mode}</span></div></div></section>
-    <div className="metrics"><Metric icon={Activity} label="Processed events" value={status.processed_events.toLocaleString()} hint="Current run"/><Metric icon={Database} label="Event history" value={total.toLocaleString()} hint="Persisted records"/><Metric icon={Shield} label="Sensor plane" value={sensors?.dual_sensor_ready ? "READY" : "STAGED"} hint="Suricata + Zeek"/><Metric icon={Gauge} label="Bus" value={status.broker === "redis" ? "ONLINE" : "LOCAL"} hint="Redis Stream"/></div>
-    <div className="overview-grid"><section className="panel"><div className="panel-title"><div><span className="overline">LATEST TELEMETRY</span><h3>Packet activity</h3></div><button className="text-btn" onClick={() => onNavigate("events")}>View all <ChevronRight size={14}/></button></div><div className="event-list">{events.slice(0, 6).map((event, index) => <EventRow key={`${event.timestamp}-${index}`} event={event}/>) }{!events.length && <Empty text="No events persisted yet"/>}</div></section><section className="panel"><div className="panel-title"><div><span className="overline">SENSOR PLANE</span><h3>Readiness</h3></div><button className="text-btn" onClick={() => onNavigate("sensors")}>Manage <ChevronRight size={14}/></button></div><SensorLine label="Suricata" ok={!!sensors?.suricata.available} detail={sensors?.suricata.available ? "EVE output detected" : "Awaiting sensor output"}/><SensorLine label="Zeek" ok={!!sensors?.zeek.available} detail={sensors?.zeek.available ? "Connection log detected" : "Awaiting sensor output"}/><SensorLine label="Redis stream" ok={status.broker === "redis"} detail={status.broker === "redis" ? "nids:raw-events" : "Optional / unavailable"}/><div className="protocol-box"><span className="overline">RECENT PROTOCOL MIX</span>{Object.entries(events.reduce<Record<string, number>>((a, e) => { const k = e.protocol || "unknown"; a[k] = (a[k] || 0) + 1; return a; }, {})).slice(0, 4).map(([key, value]) => <div className="bar-row" key={key}><span>{key}</span><i><b style={{ width: `${Math.min(100, value / Math.max(1, events.length) * 100)}%` }}/></i><em>{value}</em></div>)}</div></section></div></>;
+    <div className="metrics"><Metric icon={Activity} label="Processed events" value={status.processed_events.toLocaleString()} hint="Current run"/><Metric icon={AlertTriangle} label="Threat signals" value={alerts.filter((alert) => alert.severity !== "LOW").length.toLocaleString()} hint="Layer 4 alerts"/><Metric icon={Database} label="Event history" value={total.toLocaleString()} hint="Persisted records"/><Metric icon={Gauge} label="Detection engine" value={status.ml?.available ? "READY" : "STAGED"} hint={status.ml?.available ? "RF + IF online" : status.ml?.error || "Waiting for telemetry"}/></div>
+    <LayerPipeline status={status} sensors={sensors}/>
+    <div className="overview-grid"><section className="panel"><div className="panel-title"><div><span className="overline">LATEST TELEMETRY</span><h3>Packet activity</h3></div><button className="text-btn" onClick={() => onNavigate("events")}>View all <ChevronRight size={14}/></button></div><div className="event-list">{events.slice(0, 6).map((event, index) => <EventRow key={`${event.timestamp}-${index}`} event={event}/>) }{!events.length && <Empty text="No events persisted yet"/>}</div></section><section className="panel"><div className="panel-title"><div><span className="overline">LAYER 4 / THREAT TRIAGE</span><h3>Detection queue</h3></div><span className="count">{alerts.length} recent</span></div>    <div className="alert-list">{alerts.filter((alert) => alert.severity !== "LOW").slice(0, 5).map((alert, index) => <AlertRow alert={alert} key={`${alert.event_id}-${index}`}/>)}{!alerts.some((alert) => alert.severity !== "LOW") && <Empty text="No active threats detected"/>}</div></section></div></>;
+}
+function LayerPipeline({ status, sensors }: { status: Status; sensors: SensorStatus | null }) { const layers: [string, string, boolean][] = [["L1", "CAPTURE", status.running], ["L2", "NORMALIZE", status.processed_events > 0], ["L3", "STREAM", status.broker === "redis" || status.processed_events > 0], ["L4", "DETECT", !!status.ml?.available]]; return <section className="layer-pipeline panel"><div><span className="overline">END-TO-END DEFENSE PIPELINE</span><h3>Four-layer telemetry path</h3></div><div className="layer-track">{layers.map(([index, label, ready], position) => <div className="layer-step" key={index}><span className={`layer-node ${ready ? "ready" : ""}`}>{index}</span><b>{label}</b>{position < layers.length - 1 && <span className="layer-connector"/>}</div>)}</div><small>{sensors?.dual_sensor_ready ? "Dual sensor plane connected" : "Attach Suricata + Zeek to activate the sensor plane"} · {status.detected_alerts} elevated signals this run</small></section>; }
+function AlertRow({ alert }: { alert: Alert }) { return <div className="alert-row"><span className={`severity-dot ${alert.severity.toLowerCase()}`}/><div><b>{alert.source_ip || "unknown"} <small>→</small> {alert.destination_ip || "unknown"}</b><span>{alert.severity} · risk {(alert.risk_score * 100).toFixed(0)}% · {alert.detected_by.join(" + ") || "baseline"}</span></div><strong>{new Date(alert.timestamp).toLocaleTimeString()}</strong></div>; }
+function Detections({ alerts, total }: { alerts: Alert[]; total: number }) {
+  const [query, setQuery] = useState("");
+  const [severity, setSeverity] = useState<"ALL" | Alert["severity"]>("ALL");
+  const [selected, setSelected] = useState<Alert | null>(null);
+  const filtered = alerts.filter((alert) => {
+    const matchesSeverity = severity === "ALL" || alert.severity === severity;
+    const haystack = JSON.stringify(alert).toLowerCase();
+    return matchesSeverity && haystack.includes(query.toLowerCase());
+  });
+  return <section className="panel event-page detection-page">
+    <div className="panel-title"><div><span className="overline">LAYER 4 / AUDITABLE MODEL OUTPUT</span><h3>Detection log</h3><p className="panel-subtitle">Every record links model decisions to the normalized packet and original sensor payload.</p></div><div className="stream-summary"><span className="live-indicator"><i/> LIVE DETECTIONS</span><span className="count">{total.toLocaleString()} stored records</span></div></div>
+    <div className="stream-toolbar detection-toolbar"><label className="search-box"><Search size={14}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter IP, event id, sensor, detector..." /></label><select className="severity-filter" value={severity} onChange={(event) => setSeverity(event.target.value as "ALL" | Alert["severity"])}><option value="ALL">All severity</option><option value="HIGH">High</option><option value="MEDIUM">Medium</option><option value="LOW">Low</option></select><span className="count">{filtered.length} visible</span></div>
+    <div className="table-wrap"><table className="detection-table"><thead><tr><th>TIME</th><th>SEVERITY</th><th>FLOW</th><th>RISK</th><th>MODELS</th><th>SENSOR</th><th>DETAIL</th></tr></thead><tbody>{filtered.map((alert, index) => <tr className={selected?.event_id === alert.event_id ? "selected-row" : ""} key={`${alert.event_id}-${index}`} onClick={() => setSelected(alert)}><td><b>{new Date(alert.timestamp).toLocaleTimeString()}</b><small>{new Date(alert.timestamp).toLocaleDateString()}</small></td><td><span className={`severity-badge ${alert.severity.toLowerCase()}`}>{alert.severity}</span></td><td><b>{alert.source_ip || "unknown"} <small>→</small> {alert.destination_ip || "unknown"}</b><small>{alert.protocol || "unknown"} · {alert.packet?.destination_port ?? "—"}</small></td><td><strong>{(alert.risk_score * 100).toFixed(0)}%</strong><small>RF {(alert.supervised_probability * 100).toFixed(0)}% · IF {(alert.anomaly_score * 100).toFixed(0)}%</small></td><td>{alert.detected_by.length ? alert.detected_by.map((model) => <span className="model-tag" key={model}>{model.replace("_", " ")}</span>) : <span className="baseline-tag">BASELINE</span>}</td><td><span className="sensor-tag">{alert.capture_source}</span><small>{alert.packet?.event_type || "legacy event"}</small></td><td><button className="row-action" onClick={(event) => { event.stopPropagation(); setSelected(alert); }}>Inspect</button></td></tr>)}</tbody></table>{!filtered.length && <Empty text={query ? "No detections match this filter" : "No detections recorded yet"}/>}</div>
+    {selected && <DetectionDetail alert={selected} onClose={() => setSelected(null)}/>}
+  </section>;
+}
+function DetectionDetail({ alert, onClose }: { alert: Alert; onClose: () => void }) {
+  return <><button className="detail-backdrop" aria-label="Close detection detail" onClick={onClose}/><aside className="event-detail detection-detail" aria-label="Detection detail panel"><div className="detail-heading"><div><span className="overline">DETECTION INSPECTOR</span><h4>{alert.severity} security signal</h4><p>Linked event {alert.event_id}</p></div><button className="icon-btn" aria-label="Close detection detail" onClick={onClose}><X size={16}/></button></div><div className="detection-score"><div><span>RISK SCORE</span><b>{(alert.risk_score * 100).toFixed(1)}%</b></div><div><span>RANDOM FOREST</span><b>{(alert.supervised_probability * 100).toFixed(1)}%</b></div><div><span>ISOLATION FOREST</span><b>{(alert.anomaly_score * 100).toFixed(1)}%</b></div></div><div className="detail-status"><span className={`severity-dot ${alert.severity.toLowerCase()}`}/><b>{alert.detected_by.join(" + ") || "BASELINE"}</b><span>{alert.capture_source}</span></div><div className="detection-explanation">{alert.explanation}</div><div className="raw-heading"><span>PACKET CONTEXT</span><span>JSON</span></div><pre>{JSON.stringify(alert.packet ?? { note: "Legacy alert created before packet context was stored." }, null, 2)}</pre><div className="raw-heading"><span>DERIVED ML FEATURES</span><span>JSON</span></div><pre>{JSON.stringify(alert.model_features ?? { note: "Legacy alert created before feature snapshots were stored." }, null, 2)}</pre></aside></>;
 }
 function Metric({ icon: Icon, label, value, hint }: { icon: typeof Activity; label: string; value: string; hint: string }) { return <div className="metric"><Icon size={17}/><span>{label}</span><strong>{value}</strong><small>{hint}</small></div>; }
 function SensorControl({ mode, setMode, iface, setIface, interfaces, selected, busy, running, action }: any) { return <section className="panel control-panel"><div className="panel-title"><div><span className="overline">CAPTURE CONTROL</span><h3>Sensor orchestration</h3></div><span className={`status-pill ${running ? "live" : ""} ${busy ? "working" : ""}`}><i/> {busy ? "STARTING" : running ? "ACTIVE" : "IDLE"}</span></div><div className="mode-list">{modes.map((item) => <button className={mode === item.id ? "mode active" : "mode"} onClick={() => setMode(item.id)} key={item.id}><span className="mode-index">0{modes.indexOf(item) + 1}</span><span><b>{item.label}</b><small>{item.detail}</small></span><ChevronRight size={16}/></button>)}</div>{mode === "live" && <label className="field"><span>MONITORED INTERFACE</span><select value={iface} onChange={(e) => setIface(e.target.value)}><option value="">Select adapter</option>{interfaces.map((item: any) => <option key={item.name} value={item.name}>{item.description} ({item.name})</option>)}</select></label>}<div className="sensor-note"><Wifi size={16}/><div><b>Interface-driven capture</b><p>Suricata and Zeek run on the sensor host and emit live telemetry. No PCAP path is required for production mode.</p></div></div><div className="actions"><button className="btn secondary" onClick={() => action("stop")} disabled={busy || !running}><CircleStop size={15}/> Stop</button><button className={`btn primary ${busy ? "loading" : ""}`} onClick={() => action(running ? "switch" : "start")} disabled={busy || (mode === "live" && !iface)}>{busy ? <><LoaderCircle size={16} className="spin"/> Connecting sensors…</> : <><Play size={15}/>{running ? "Switch source" : "Start sensor plane"}</>}</button></div>{busy && <div className="capture-progress" role="status"><span className="progress-scan"/><span>Contacting FastAPI capture worker and attaching <b>{mode}</b>…</span></div>}</section>; }
